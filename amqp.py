@@ -9,7 +9,6 @@ import pika
 def callback(ch, method, properties, body):
     pass
 
-
 logging.basicConfig()
 
 config = configparser.ConfigParser()
