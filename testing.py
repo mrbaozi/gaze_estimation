@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import configparser
-import numpy as np
+from time import sleep
+import multiprocessing as mp
 import cv2
+import numpy as np
 import flycapture2 as fc2
+
+from modules.PyOSBReceiver import PyOSBReceiver
+
+
+FMT = '[%(asctime)s.%(msecs)03d] [%(name)s] [%(levelname)s] %(message)s'
+DATEFMT = '%Y-%m-%d %H:%M:%S'
+logging.basicConfig(format=FMT, datefmt=DATEFMT, level=logging.INFO)
+
 
 config = configparser.ConfigParser()
 config.read('./config/config.ini')
@@ -12,14 +23,22 @@ config.read('./config/config.ini')
 R = config.getfloat('parameters', 'R')
 K = config.getfloat('parameters', 'K')
 n1 = config.getfloat('parameters', 'n1')
-alpha_eyes = config.getfloat('parameters', 'alpha_eyes ')
-beta_eyes = config.getfloat('parameters', 'beta_eyes ')
+alpha_eye = config.getfloat('parameters', 'alpha_eye')
+beta_eye = config.getfloat('parameters', 'beta_eye')
 
-c = fc2.Context()
-c.connect(*c.get_camera_from_index(0))
-im = fc2.Image()
-c.start_capture()
-c.retrieve_buffer(im)
-c.stop_capture()
-c.disconnect()
-frame = np.array(im)
+receiver_config = dict(config.items('pyosb_receiver'))
+receiver = PyOSBReceiver(receiver_config)
+
+try:
+    receiver.run()
+except KeyboardInterrupt:
+    receiver.stop()
+
+# c = fc2.Context()
+# c.connect(*c.get_camera_from_index(0))
+# im = fc2.Image()
+# c.start_capture()
+# c.retrieve_buffer(im)
+# c.stop_capture()
+# c.disconnect()
+# frame = np.array(im)
