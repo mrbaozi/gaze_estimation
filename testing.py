@@ -5,9 +5,7 @@ import logging
 import configparser
 from time import sleep
 import multiprocessing as mp
-import cv2
 import numpy as np
-import flycapture2 as fc2
 
 from modules.PyOSBReceiver import PyOSBReceiver
 
@@ -33,12 +31,3 @@ try:
     receiver.run()
 except KeyboardInterrupt:
     receiver.stop()
-
-# c = fc2.Context()
-# c.connect(*c.get_camera_from_index(0))
-# im = fc2.Image()
-# c.start_capture()
-# c.retrieve_buffer(im)
-# c.stop_capture()
-# c.disconnect()
-# frame = np.array(im)
