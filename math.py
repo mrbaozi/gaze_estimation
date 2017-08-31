@@ -12,11 +12,21 @@ R = 7.2
 alpha_eye = 5
 beta_eye = 1.5
 
+# camera parameters (from calibration)
+focal_length = 8.42800210895 # in mm
+nodal_x = 2.6996358692163716 # in mm
+nodal_y = 2.2439755534153347 # in mm
+c_x = 1.07985435e+03         # in px
+c_y = 8.97590221e+02         # in px
+f_x = 3.37120084e+03         # in px
+f_y = 3.37462371e+03         # in px
+pixel_pitch = 0.0025         # 2.5 micro meter pixel size in mm
+
 # position of nodal point of camera
-o = np.array((0, 0, 8))
+o = np.array((nodal_x, nodal_y, focal_length))
 
 # position of light source 1, 2
-ls = np.array(((-50, 5, 0), (50, 5, 0)))
+ls = np.array(((-80, -15, 0), (80, -15, 0)))
 
 # position of glint image on sensor plane 1, 2
 gi = np.array(((-0.664, -1.03725, 0), (-0.6795, -1.03775, 0)))
@@ -24,9 +34,12 @@ gi = np.array(((-0.664, -1.03725, 0), (-0.6795, -1.03775, 0)))
 # position of pupil image on sensor plane 1, 2
 pi = np.array((-0.68275, -1.0585, 0))
 
-
 b = np.cross(np.cross(gi[0] - o, ls[0] - o), np.cross(ls[1] - o, gi[1] - o))
 b_norm = b / np.linalg.norm(b)
+
+# transform img to camera coordinates
+def to_ccs((x, y, z), x_center, y_center, p_pitch, lmb):
+    return ((p_pitch * (x - x_center), p_pitch * (y - y_center), -lmb * z))
 
 # for glints 1, 2
 def k_r(k_c, i):
