@@ -123,6 +123,13 @@ def main():
     k_g = c_res[2] / (np.cos(phi_eye + beta_eye) * np.cos(theta_eye + alpha_eye))
     print("\nk_g:\n", k_g)
 
+    # calculate visual axis g from k_g
+    x1 = np.cos(phi_eye + beta_eye) * np.sin(theta_eye + alpha_eye)
+    x2 = np.sin(phi_eye + beta_eye)
+    x3 = -np.cos(phi_eye + beta_eye) * np.cos(theta_eye + alpha_eye)
+    g = c_res + k_g * np.array([x1, x2, x3])
+    print("\ng:\n", g)
+
     # plots
     xmin = -500
     xmax = 500
@@ -143,6 +150,7 @@ def main():
     ax.scatter(*np.array(nodal_point).T, c='k')
     ax.scatter(*ppos_ccs[0].T, c='w')
     ax.scatter(*np.array((c_res, p_res)).T, c='g')
+    ax.scatter(*g.T, c='r')
     ax.plot(*np.array((c_res, p_res)).T, c='g')
     plt.grid()
     plt.tight_layout()
