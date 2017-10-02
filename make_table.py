@@ -11,6 +11,7 @@ with open('./recordings/evaluation_grid_9x9.json') as f:
 eyecoords = []
 pupilpos = []
 reflexpos = []
+target = []
 
 for frame in data:
     if ('pupilpos' in frame['left_eye']) \
@@ -20,17 +21,22 @@ for frame in data:
         eyecoords.append([frame['left_eye']['eyecoords'], frame['right_eye']['eyecoords']])
         pupilpos.append([frame['left_eye']['pupilpos'], frame['right_eye']['pupilpos']])
         reflexpos.append([frame['left_eye']['reflexpos'], frame['right_eye']['reflexpos']])
+        target.append([frame['gaze_target']])
 
 ecl, ecr = [], []
 ppl, ppr = [], []
 rxl, rxr = [], []
-for coord, ppos, rpos in zip(eyecoords, pupilpos, reflexpos):
+tgt = []
+for coord, ppos, rpos, tget in zip(eyecoords, pupilpos, reflexpos, target):
     ecl.append([float(coord[0]['x']), float(coord[0]['y'])])
     ecr.append([float(coord[1]['x']), float(coord[1]['y'])])
     ppl.append([float(ppos[0]['x']), float(ppos[0]['y'])])
     ppr.append([float(ppos[1]['x']), float(ppos[1]['y'])])
-    rxl.append([rpos[0][0]['x'], rpos[0][0]['y'], rpos[0][1]['x'], rpos[0][1]['y']])
-    rxr.append([rpos[1][0]['x'], rpos[1][0]['y'], rpos[1][1]['x'], rpos[1][1]['y']])
+    tgt.append([1680 * float(tget[0]['x']), 1050 * float(tget[0]['y'])])
+    rxl.append([float(rpos[0][0]['x']), float(rpos[0][0]['y']), \
+                float(rpos[0][1]['x']), float(rpos[0][1]['y'])])
+    rxr.append([float(rpos[1][0]['x']), float(rpos[1][0]['y']), \
+                float(rpos[1][1]['x']), float(rpos[1][1]['y'])])
 
 ecl = np.array(ecl)
 ecr = np.array(ecr)
@@ -38,6 +44,7 @@ ppl = np.array(ppl)
 ppr = np.array(ppr)
 rxl = np.array(rxl)
 rxr = np.array(rxr)
+tgt = np.array(tgt)
 
 ppl += ecl
 ppr += ecr
@@ -55,3 +62,4 @@ np.savetxt('./data/pupilpos_lefteye.txt', ppl)
 np.savetxt('./data/pupilpos_righteye.txt', ppr)
 np.savetxt('./data/reflexpos_lefteye.txt', rxl)
 np.savetxt('./data/reflexpos_righteye.txt', rxr)
+np.savetxt('./data/targets.txt', tgt)
