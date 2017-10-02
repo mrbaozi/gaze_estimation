@@ -1,5 +1,6 @@
-# generated plots
+# exclude folders
 plots/
+video/
 
 # binary recordings (too large)
 *.dat
