@@ -21,7 +21,10 @@ from tqdm import tqdm
 ##
 
 class DevNull(object):
+    """ For deactivating print output (yes, it's hacky af) """
     def write(self, arg):
+        pass
+    def flush(self):
         pass
 
 
@@ -30,8 +33,8 @@ class DevNull(object):
 ##
 
 # eye parameters
-K = 4.2
-R = 7.2
+K = 4.75
+R = 7.8
 alpha_eye_l = -5
 alpha_eye_r = 5
 beta_eye = 1.5
@@ -44,8 +47,8 @@ c_center = np.array([1.07985435e+03, 8.97590221e+02])
 f_x = 3.37120084e+03         # in px
 f_y = 3.37462371e+03         # in px
 p_pitch = 0.0025         # 2.5 micro meter pixel size in mm
-phi_cam = -6.0
-theta_cam = -2.0
+phi_cam = 0.0
+theta_cam = 0.0
 kappa_cam = 0.0
 
 # position of nodal point of camera
@@ -176,8 +179,18 @@ def solution2(kc, u, w, o, l, m, b):
     rhs = np.dot(o - s, s - c) * np.linalg.norm(m - s)
     return lhs - rhs
 
+def find_min_distance(params, eye1, gaze1, eye2, gaze2):
+    t1, t2 = params
+    vec1 = eye1 + t1 * (gaze1 - eye1)
+    vec2 = eye2 + t2 * (gaze2 - eye2)
+    return np.linalg.norm(vec1 - vec2)
+
 
 def main(rng, it=False):
+    gazepoints_l = []
+    gazepoints_r = []
+    mindist_l = []
+    mindist_r = []
     if it:
         sys.stdout = DevNull()
     for i in tqdm(range(rng)):
@@ -313,18 +326,26 @@ def main(rng, it=False):
         x2_r = np.sin(np.deg2rad(phi_eye_r + beta_eye))
         x3_r = -np.cos(np.deg2rad(phi_eye_l + beta_eye)) * np.cos(np.deg2rad(theta_eye_r + alpha_eye_r))
         gazepoint_r = c_res_r + k_g_r * np.array([x1_r, x2_r, x3_r])
+
+        gazepoints_l.append(gazepoint_l)
+        gazepoints_r.append(gazepoint_r)
+
         print("Gaze point (left): {}".format(gazepoint_l))
         print("Gaze point (right): {}".format(gazepoint_r))
 
-        # # calculate shortest distance between visual axes ("intersection")
-        # mindist = np.dot(c_res_l - c_res_r, np.cross(gazepoint_l, gazepoint_r)) \
-        #     / np.linalg.norm(np.cross(gazepoint_l, gazepoint_r))
-        # n = np.cross(gazepoint_l, gazepoint_r)
-        # n1 = np.cross(gazepoint_l, n)
-        # n2 = np.cross(gazepoint_r, n)
-        # c1 = c_res_l + np.dot(np.dot(c_res_l - c_res_r, n2) / np.dot(gazepoint_l, n2), gazepoint_l)
-        # c2 = c_res_r + np.dot(np.dot(c_res_r - c_res_l, n1) / np.dot(gazepoint_r, n1), gazepoint_r)
-        # print("Minimum distance between visual axes: {}".format(mindist))
+        # calculate shortest distance between visual axes ("intersection")
+        mindist = optimize.minimize(find_min_distance, (1, 1),
+                                  args=(c_res_l, gazepoint_l, c_res_r, gazepoint_r),
+                                  bounds=((-100, 100),
+                                          (-100, 100)),
+                                  method='SLSQP',
+                                  tol=1e-5)
+        solp1 = c_res_l + (gazepoint_l - c_res_l) * mindist.x[0]
+        solp2 = c_res_r + (gazepoint_r - c_res_r) * mindist.x[1]
+        mindist_l.append(solp1)
+        mindist_r.append(solp2)
+        print(mindist)
+
 
         # plots
         if not it:
@@ -352,8 +373,9 @@ def main(rng, it=False):
         ax.scatter(*vl.T, c='g')
         ax.scatter(*vr.T, c='g')
         ax.scatter(*o.T, c='k')
-        ax.scatter(*np.array((c_res_l, p_res_l)).T, c='b')
-        ax.scatter(*np.array((c_res_r, p_res_r)).T, c='r')
+        ax.scatter(*np.array((c_res_l, p_res_l, gazepoint_l)).T, c='b')
+        ax.scatter(*np.array((c_res_r, p_res_r, gazepoint_r)).T, c='r')
+        ax.scatter(*np.array((solp1, solp2)).T, c='y')
         ax.plot(*np.array((c_res_l, gazepoint_l)).T, c='b')
         ax.plot(*np.array((c_res_r, gazepoint_r)).T, c='r')
         plt.grid()
@@ -367,7 +389,35 @@ def main(rng, it=False):
             plt.show()
         plt.close()
 
+    # gazepoints_l = np.array(gazepoints_l)
+    # gazepoints_r = np.array(gazepoints_r)
+    # gazepoints_l = gazepoints_l[~np.isnan(gazepoints_l).any(axis=1)]
+    # gazepoints_r = gazepoints_r[~np.isnan(gazepoints_r).any(axis=1)]
+    # gazepoints_l = gazepoints_l[abs(gazepoints_l[:, 0]) < 2000]
+    # gazepoints_r = gazepoints_r[abs(gazepoints_r[:, 0]) < 2000]
+    # gazepoints_l = gazepoints_l[abs(gazepoints_l[:, 1]) < 2000]
+    # gazepoints_r = gazepoints_r[abs(gazepoints_r[:, 1]) < 2000]
+    # gazepoints_l = gazepoints_l[abs(gazepoints_l[:, 2]) < 2000]
+    # gazepoints_r = gazepoints_r[abs(gazepoints_r[:, 2]) < 2000]
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(*gazepoints_l.T)
+    # ax.scatter(*gazepoints_r.T)
+    # plt.show()
+
+    # mindist_l = np.array(mindist_l)
+    # mindist_r = np.array(mindist_r)
+    # mindist = mindist_l + 0.5 * (mindist_r - mindist_l)
+    # mindist = mindist[~np.isnan(mindist).any(axis=1)]
+    # mindist = mindist[abs(mindist[:, 0]) < 1000]
+    # mindist = mindist[abs(mindist[:, 1]) < 1000]
+    # mindist = mindist[abs(mindist[:, 2]) < 1000]
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(*mindist.T)
+    # plt.show()
+
+
 if __name__ == '__main__':
-    # rng = len(glints1_l)
     rng = 1
     main(rng, 0)
