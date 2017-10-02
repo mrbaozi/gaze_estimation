@@ -8,10 +8,21 @@ Equation references (x.xx) in functions correspond to above thesis.
 """
 
 
+import sys
 import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from tqdm import tqdm
+
+
+####
+# Utility
+##
+
+class DevNull(object):
+    def write(self, arg):
+        pass
 
 
 ####
@@ -33,16 +44,16 @@ c_center = np.array([1.07985435e+03, 8.97590221e+02])
 f_x = 3.37120084e+03         # in px
 f_y = 3.37462371e+03         # in px
 p_pitch = 0.0025         # 2.5 micro meter pixel size in mm
-phi_cam = 0
-theta_cam = 0
-kappa_cam = 0
+phi_cam = -6.0
+theta_cam = -2.0
+kappa_cam = 0.0
 
 # position of nodal point of camera
 nodal_point = np.array([0, 0, focal_length])
 
 # position of light source 1, 2
-source1 = np.array([-80, -15, -5])
-source2 = np.array([80, -15, -5])
+source1 = np.array([-40, -355, 0])
+source2 = np.array([40, -355, 0])
 
 
 ####
@@ -166,9 +177,11 @@ def solution2(kc, u, w, o, l, m, b):
     return lhs - rhs
 
 
-def main():
+def main(rng, it=False):
+    if it:
+        sys.stdout = DevNull()
+    for i in tqdm(range(rng)):
         # transform image to camera coordinates
-        i = 0
         glint1_l = to_ccs(glints1_l[i], c_center, p_pitch)
         glint2_l = to_ccs(glints2_l[i], c_center, p_pitch)
         glint1_r = to_ccs(glints1_r[i], c_center, p_pitch)
@@ -314,21 +327,22 @@ def main():
         # print("Minimum distance between visual axes: {}".format(mindist))
 
         # plots
-        xmin = -500
-        xmax = 500
-        x = range(xmin, xmax)
-        rng = np.linspace(xmin, xmax, xmax - xmin)
-        y1l = np.array([solution1(x, ul, wl, o, l, m, bl) for x in rng])
-        y2l = np.array([solution2(x, ul, wl, o, l, m, bl) for x in rng])
-        y1r = np.array([solution1(x, ur, wr, o, l, m, br) for x in rng])
-        y2r = np.array([solution2(x, ur, wr, o, l, m, br) for x in rng])
-        plt.plot(x, y1l)
-        plt.plot(x, y2l)
-        plt.plot(x, y1r)
-        plt.plot(x, y2r)
-        plt.grid()
-        plt.tight_layout()
-        plt.show()
+        if not it:
+            xmin = -500
+            xmax = 500
+            x = range(xmin, xmax)
+            rng = np.linspace(xmin, xmax, xmax - xmin)
+            y1l = np.array([solution1(x, ul, wl, o, l, m, bl) for x in rng])
+            y2l = np.array([solution2(x, ul, wl, o, l, m, bl) for x in rng])
+            y1r = np.array([solution1(x, ur, wr, o, l, m, br) for x in rng])
+            y2r = np.array([solution2(x, ur, wr, o, l, m, br) for x in rng])
+            plt.plot(x, y1l)
+            plt.plot(x, y2l)
+            plt.plot(x, y1r)
+            plt.plot(x, y2r)
+            plt.grid()
+            plt.tight_layout()
+            plt.show()
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -340,18 +354,20 @@ def main():
         ax.scatter(*o.T, c='k')
         ax.scatter(*np.array((c_res_l, p_res_l)).T, c='b')
         ax.scatter(*np.array((c_res_r, p_res_r)).T, c='r')
-        # ax.plot(*np.array((c_res_l, -p_res_l)).T, c='b')
-        # ax.plot(*np.array((c_res_r, -p_res_r)).T, c='r')
-        ax.plot(*np.array((c_res_l, gazepoint_l/10)).T, c='b')
-        ax.plot(*np.array((c_res_r, gazepoint_r/10)).T, c='r')
+        ax.plot(*np.array((c_res_l, gazepoint_l)).T, c='b')
+        ax.plot(*np.array((c_res_r, gazepoint_r)).T, c='r')
         plt.grid()
         plt.tight_layout()
         box = 500
         ax.auto_scale_xyz([-box, box], [-box, box], [-box, box])
         ax.view_init(elev=110, azim=-90)
-        # plt.savefig('./imgs/frame_{:03d}.png'.format(i))
-        # plt.close()
-        plt.show()
+        if it:
+            plt.savefig('./plots/frame_{:04d}.png'.format(i))
+        else:
+            plt.show()
+        plt.close()
 
 if __name__ == '__main__':
-    main()
+    # rng = len(glints1_l)
+    rng = 1
+    main(rng, 0)

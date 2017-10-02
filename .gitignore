@@ -1,3 +1,6 @@
+# generated plots
+plots/
+
 # binary recordings (too large)
 *.dat
 
