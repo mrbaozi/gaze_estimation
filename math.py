@@ -35,7 +35,7 @@ class DevNull(object):
 # eye parameters
 K = 4.75
 R = 7.8
-alpha_eye = [-5, 5]
+alpha_eye = [5, -5]
 beta_eye = 1.5
 
 # camera parameters (from calibration)
@@ -46,7 +46,8 @@ c_center = np.array([1.07985435e+03, 8.97590221e+02])
 f_x = 3.37120084e+03         # in px
 f_y = 3.37462371e+03         # in px
 p_pitch = 0.0025         # 2.5 micro meter pixel size in mm
-phi_cam = 0.0
+phi_cam = -17.0
+phi_cam = 0
 theta_cam = 0.0
 kappa_cam = 0.0
 
@@ -54,10 +55,8 @@ kappa_cam = 0.0
 nodal_point = np.array([0, 0, focal_length])
 
 # position of light source 1, 2
-source = np.array([[-110, -355, 0],
-                   [110, -355, 0]])
-source1 = np.array([-110, -355, 0])
-source2 = np.array([110, -355, 0])
+source = np.array([[-110, -390, 0],
+                   [110, -390, 0]])
 
 # ccs to wcs translation vector
 t_trans = np.array([0, 0, 0])
@@ -75,6 +74,7 @@ targets = np.loadtxt('./data/targets.txt')
 
 # transform gaze targets from pixel to world coordinates
 targets = 0.282 * targets - np.array([0.282 * 860, 0.282 * 1050 + 36])
+# targets = 0.282 * targets - np.array([0.282 * 860, -36])
 
 glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
           [rpos_r[:, [0, 1]], rpos_r[:, [2, 3]]]]
@@ -130,8 +130,8 @@ def b_norm(u, l, m, w, o):
 def k_qsp(k_c, o, uvw, b, rk):
     """k_q, k_s, k_p (2.33, 2.34, 2.35)"""
     num = k_c * np.dot(o - uvw, b) \
-        - np.sqrt(np.abs((k_c * np.dot(o - uvw, b))**2 \
-                  - np.linalg.norm(o - uvw)**2 * (k_c**2 - rk**2)))
+        - np.sqrt(k_c**2 * np.dot(o - uvw, b)**2 \
+                  - np.linalg.norm(o - uvw)**2 * (k_c**2 - rk**2))
     denom = np.linalg.norm(o - uvw)**2
     return (num / denom)
 
@@ -177,9 +177,16 @@ def find_min_distance(params, eye1, gaze1, eye2, gaze2):
 # Main loops
 ##
 
-def calibrate(params, args):
+def calibrate(params, *args):
     r, k, alpha, beta, theta, kappa = params
     glints, pupils, targets = args
+
+    # print("r:       ", r)
+    # print("k:       ", k)
+    # print("alpha:   ", alpha)
+    # print("beta:    ", beta)
+    # print("theta:   ", theta)
+    # print("kappa:   ", kappa)
 
     # determine coordinate transformation parameters
     kcam = k_cam(phi_cam, theta)
@@ -229,7 +236,8 @@ def calibrate(params, args):
     o_ax_norm = o_ax / np.linalg.norm(o_ax)
 
     # calculate phi_eye and theta_eye from c_res and p_res
-    phi_eye = np.arcsin((p_res[1] - c_res[1]) / k)
+    val = (np.abs(p_res[1] - c_res[1])) / k
+    phi_eye = np.arcsin(val)
     theta_eye = -np.arctan((p_res[0] - c_res[0]) /
                            (p_res[2] - c_res[2]))
 
@@ -369,6 +377,7 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
             ax.scatter(*np.array(mindists[0][i]).T, c='y', label='Closest point (left)')
             ax.scatter(*np.array(mindists[1][i]).T, c='y', label='Closest point (right)')
             ax.scatter(*np.unique(targets, axis=0).T, [0] * 9, c='k', label='Nodal point')
+            # ax.scatter(*targets[0].T, 0, c='r', label='Nodal point')
             ax.plot(*np.array((c_res[0][i], gazepoints[0][i])).T, c='b', linestyle='--')
             ax.plot(*np.array((c_res[1][i], gazepoints[1][i])).T, c='r', linestyle='--')
             ax.auto_scale_xyz([-500, 500], [-500, 500], [-1000, 0])
@@ -456,20 +465,19 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
 if __name__ == '__main__':
 
     # main(1, innerplots=True, outerplots=False, savefig=False)
-    # main(2000, innerplots=False, outerplots=True, savefig=False)
+    main(len(targets), innerplots=True, outerplots=False, savefig=True)
 
-    params = (7.4, 4.5, 5, 1.5, 0, 0)
-    bounds = ((5, 9),
-              (3, 6),
-              (2, 8),
-              (0, 3),
-              (-20, 20),
-              (-10, 10))
-    args = (glints[0][0:100],
-            ppos[0][0:100],
-            targets[0:100])
-    kc1 = optimize.minimize(calibrate, params, args=args,
-                            bounds=bounds,
-                            method='SLSQP', tol=1e-5)
-
-    print(kc1)
+#     params = (7.8, 4.75, 5, 1.5, 0.1, 0.1)
+#     bounds = ((4, 12),
+#               (2, 8),
+#               (0, 10),
+#               (0, 5),
+#               (-5, 5),
+#               (-5, 5))
+#     args = (glints[0][0:200],
+#             ppos[0][0:200],
+#             targets[0:200])
+#     kc1 = optimize.minimize(calibrate, params, args=args,
+#                             bounds=bounds,
+#                             method='SLSQP', tol=1e-1)
+#     print(kc1)
