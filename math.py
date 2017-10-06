@@ -10,7 +10,8 @@ Equation references (x.xx) in functions correspond to above thesis.
 
 import sys
 import numpy as np
-from scipy import optimize
+import numpy.linalg as LA
+from scipy.optimize import minimize, fsolve
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
@@ -37,6 +38,8 @@ K = 4.75
 R = 7.8
 alpha_eye = [5, -5]
 beta_eye = 1.5
+n1 = 1.3375
+n2 = 1.0
 
 # camera parameters (from calibration)
 focal_length = 8.42800210895 # in mm
@@ -47,9 +50,15 @@ f_x = 3.37120084e+03         # in px
 f_y = 3.37462371e+03         # in px
 p_pitch = 0.0025         # 2.5 micro meter pixel size in mm
 phi_cam = -17.0
-phi_cam = 0
 theta_cam = 0.0
 kappa_cam = 0.0
+
+# K = 4.0
+# R = 7.98
+# alpha_eye = [6.21616, -6.21626]
+# beta_eye = 0.29797849
+# theta_cam = 5.0
+# kappa_cam = 4.66150654
 
 # position of nodal point of camera
 nodal_point = np.array([0, 0, focal_length])
@@ -102,7 +111,7 @@ def k_cam(phi, theta):
 
 def i_cam_0(j, k):
     """i_cam_0 (2.23)"""
-    return np.cross(j, k) / np.linalg.norm(np.cross(j, k))
+    return np.cross(j, k) / LA.norm(np.cross(j, k))
 
 def j_cam_0(k, ic0):
     """j_cam_0 (2.24)"""
@@ -121,18 +130,18 @@ def j_cam(ic0, jc0, kappa):
 # Gaze estimation (2.7)
 ##
 
-def b_norm(u, l, m, w, o):
+def b_norm(l1, l2, u1, u2, o):
     """intersection of planes (2.28)"""
-    b = np.cross(np.cross(u - o, l - o), \
-                 np.cross(m - o, w - o))
-    return b / np.linalg.norm(b)
+    b = np.cross(np.cross(l1 - o, u1 - o), \
+                 np.cross(l2 - o, u2 - o))
+    return b / LA.norm(b)
 
 def k_qsp(k_c, o, uvw, b, rk):
     """k_q, k_s, k_p (2.33, 2.34, 2.35)"""
     num = k_c * np.dot(o - uvw, b) \
         - np.sqrt(k_c**2 * np.dot(o - uvw, b)**2 \
-                  - np.linalg.norm(o - uvw)**2 * (k_c**2 - rk**2))
-    denom = np.linalg.norm(o - uvw)**2
+                  - LA.norm(o - uvw)**2 * (k_c**2 - rk**2))
+    denom = LA.norm(o - uvw)**2
     return (num / denom)
 
 def glints_qsp(o, uvw, kqsp):
@@ -145,14 +154,22 @@ def curvaturecenter_c(o, b, kc):
 
 # optimization functions
 
+def phd_method1(kc, l, u, b, o, r):
+    ou_n = (o - u) / LA.norm(o - u)
+    kq = kc * np.dot(ou_n, b) - np.sqrt(kc**2 * np.dot(ou_n, b)**2 - kc**2 + r**2)
+    q = o + kq * ou_n
+    oq_n = (o - q) / LA.norm(o - q)
+    lq_n = (l - q) / LA.norm(l - q)
+    return np.dot(lq_n - oq_n, q - o + kc * b)
+
 def solve_kc_qc(kc, u, w, o, l, m, b, kr):
     """substitute q, c and solve for k_c (2.2)"""
     kq = k_qsp(kc, o, u, b, kr)
     q = glints_qsp(o, u, kq)
     c = curvaturecenter_c(o, b, kc)
 
-    lhs = np.dot(l - q, q - c) * np.linalg.norm(o - q)
-    rhs = np.dot(o - q, q - c) * np.linalg.norm(l - q)
+    lhs = np.dot(l - q, q - c) * LA.norm(o - q)
+    rhs = np.dot(o - q, q - c) * LA.norm(l - q)
     return lhs - rhs
 
 def solve_kc_sc(kc, u, w, o, l, m, b, kr):
@@ -161,8 +178,8 @@ def solve_kc_sc(kc, u, w, o, l, m, b, kr):
     s = glints_qsp(o, w, ks)
     c = curvaturecenter_c(o, b, kc)
 
-    lhs = np.dot(m - s, s - c) * np.linalg.norm(o - s)
-    rhs = np.dot(o - s, s - c) * np.linalg.norm(m - s)
+    lhs = np.dot(m - s, s - c) * LA.norm(o - s)
+    rhs = np.dot(o - s, s - c) * LA.norm(m - s)
     return lhs - rhs
 
 def find_min_distance(params, eye1, gaze1, eye2, gaze2):
@@ -170,12 +187,74 @@ def find_min_distance(params, eye1, gaze1, eye2, gaze2):
     t1, t2 = params
     vec1 = eye1 + t1 * (gaze1 - eye1)
     vec2 = eye2 + t2 * (gaze2 - eye2)
-    return np.linalg.norm(vec1 - vec2)
+    return LA.norm(vec1 - vec2)
 
 
 ####
 # Main loops
 ##
+
+def with_fsolve(glints, pupils):
+    # variable shorthands for notation simplicity
+    o = nodal_point
+    l = source
+
+    # determine coordinate transformation parameters
+    kcam = k_cam(phi_cam, theta_cam)
+    ic0 = i_cam_0(np.array([0, 1, 0]), kcam)
+    jc0 = j_cam_0(kcam, ic0)
+    icam = i_cam(ic0, jc0, kappa_cam)
+    jcam = j_cam(ic0, jc0, kappa_cam)
+    ijkcam = np.array([icam, jcam, kcam])
+
+    # transform image to camera coordinates
+    u = [to_ccs(glints[0], c_center, p_pitch),
+         to_ccs(glints[1], c_center, p_pitch)]
+    v = to_ccs(pupils, c_center, p_pitch)
+    u[0] = to_wcs(ijkcam, u[0], t_trans)
+    u[1] = to_wcs(ijkcam, u[1], t_trans)
+    v = to_wcs(ijkcam, v, t_trans)
+
+    # bnorm vector
+    b = b_norm(l[0], l[1], u[0], u[1], o)
+
+    # obtain k_c for both glints
+    args = (l[0], u[0], b, o, R)
+    kc1 = fsolve(phd_method1, 0, args=args)
+    args = (l[1], u[1], b, o, R)
+    kc2 = fsolve(phd_method1, 0, args=args)
+
+    # x = np.linspace(-5000, 5000, 1000)
+    # y1 = [phd_method1(xx, l[0], u[0], b, o, R) for xx in x]
+    # y2 = [phd_method1(xx, l[1], u[1], b, o, R) for xx in x]
+    # plt.plot(x, y1)
+    # plt.plot(x, y2)
+    # plt.show()
+
+    # use mean as result
+    kc = (kc1[0] + kc2[0]) / 2
+
+    # calculate c from kc
+    c = o + kc * b
+
+    # calculate coordinate of pupil center
+    ocov = np.dot(o - c, o - v)
+    kr = (-ocov - np.sqrt(ocov**2 - LA.norm(o - v)**2 * (LA.norm(o - c)**2 - R**2))) / LA.norm(o - v)**2
+    r = o + kr * (o - v)
+    nu = (r - c) / R
+    eta = (v - o) / LA.norm(v - o)   #FIXME
+    # eta = (o - r) / LA.norm(o - r)   #these should have the same value & sign
+    iota = n2/n1 * ((np.dot(nu, eta) - np.sqrt((n1/n2)**2 - 1 + (np.dot(nu, eta)**2)) * nu) - eta)
+    rci = np.dot(r - c, iota)
+    kp = -rci - np.sqrt(rci**2 - R**2 - K**2)
+    p = r + kp * iota
+
+    # optical axis w defined by c and p
+    w = (p - c) / LA.norm(p - c)
+
+    #TODO
+    #calculate visual axis by rotating optical axis
+    return w
 
 def calibrate(params, *args):
     r, k, alpha, beta, theta, kappa = params
@@ -206,7 +285,7 @@ def calibrate(params, *args):
     pupil = to_wcs(ijkcam, pupil, t_trans)
 
     # bnorm vector
-    bnorm = b_norm(glint[0], source[0], source[1], glint[1], nodal_point)
+    bnorm = b_norm(source[0], source[1], glint[0], glint[1], nodal_point)
 
     # obtain k_c for both glints
     args = (glint[0],
@@ -216,15 +295,11 @@ def calibrate(params, *args):
             source[1],
             bnorm,
             r)
-    kc1 = optimize.minimize(solve_kc_qc, 0, args=args,
-                              bounds=((-400, 400),),
-                              method='SLSQP', tol=1e-5)
-    kc2 = optimize.minimize(solve_kc_sc, kc1.x[0], args=args,
-                              bounds=((-400, 400),),
-                              method='SLSQP', tol=1e-5)
+    kc1 = fsolve(solve_kc_qc, 0, args=args)
+    kc2 = fsolve(solve_kc_sc, kc1[0], args=args)
 
     # use mean as result
-    kc = (kc1.x[0] + kc2.x[0]) / 2
+    kc = (kc1[0] + kc2[0]) / 2
 
     # calculate c and p from kc
     kp = k_qsp(kc, nodal_point, pupil, bnorm, k)
@@ -233,7 +308,7 @@ def calibrate(params, *args):
 
     # optical axis is vector given by c & p
     o_ax = p_res - c_res
-    o_ax_norm = o_ax / np.linalg.norm(o_ax)
+    o_ax_norm = o_ax / LA.norm(o_ax)
 
     # calculate phi_eye and theta_eye from c_res and p_res
     val = (np.abs(p_res[1] - c_res[1])) / k
@@ -251,7 +326,7 @@ def calibrate(params, *args):
     gazepoint = c_res + k_g * np.array([x1, x2, x3])
 
     target = np.array([np.mean(targets, axis=0)[0], np.mean(targets, axis=0)[1], 0])
-    return np.linalg.norm(target - gazepoint)
+    return LA.norm(target - gazepoint)
 
 
 def main(rng, innerplots=False, outerplots=True, savefig=False):
@@ -289,7 +364,7 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
             pupils_wcs[j].append(pupil)
 
             # bnorm vector
-            bnorm = b_norm(glint[0], source[0], source[1], glint[1], nodal_point)
+            bnorm = b_norm(source[0], source[1], glint[0], glint[1], nodal_point)
 
             # obtain k_c for both glints
             args = (glint[0],
@@ -299,15 +374,11 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
                     source[1],
                     bnorm,
                     R)
-            kc1 = optimize.minimize(solve_kc_qc, 0, args=args,
-                                      bounds=((-400, 400),),
-                                      method='SLSQP', tol=1e-5)
-            kc2 = optimize.minimize(solve_kc_sc, kc1.x[0], args=args,
-                                      bounds=((-400, 400),),
-                                      method='SLSQP', tol=1e-5)
+            kc1 = fsolve(solve_kc_qc, 0, args=args)
+            kc2 = fsolve(solve_kc_sc, kc1[0], args=args)
 
             # use mean as result
-            kc = (kc1.x[0] + kc2.x[0]) / 2
+            kc = (kc1[0] + kc2[0]) / 2
 
             # calculate c and p from kc
             kp = k_qsp(kc, nodal_point, pupil, bnorm, K)
@@ -316,7 +387,7 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
 
             # optical axis is vector given by c & p
             o_ax = p_res[j][i] - c_res[j][i]
-            o_ax_norm = o_ax / np.linalg.norm(o_ax)
+            o_ax_norm = o_ax / LA.norm(o_ax)
 
             # calculate phi_eye and theta_eye from c_res and p_res
             phi_eye = np.arcsin((p_res[j][i][1] - c_res[j][i][1]) / K)
@@ -333,7 +404,7 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
             gazepoints[j].append(c_res[j][i] + k_g * np.array([x1, x2, x3]))
 
         # calculate shortest distance between visual axes ("intersection")
-        mindist = optimize.minimize(find_min_distance, (1, 1),
+        mindist = minimize(find_min_distance, (1, 1),
                                   args=(c_res[0][i], gazepoints[0][i], c_res[1][i], gazepoints[1][i]),
                                   bounds=((-100, 100),
                                           (-100, 100)),
@@ -345,26 +416,26 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
             mindists[j].append(solp)
 
         if innerplots:
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
-            ax.scatter(*np.array(glints_wcs[0][i]).T, c='g', label='Glints (left)')
-            ax.scatter(*np.array(glints_wcs[1][i]).T, c='y', label='Glints (right)')
-            ax.scatter(*pupils_wcs[0][i].T, c='r', label='Pupil center (left)')
-            ax.scatter(*pupils_wcs[1][i].T, c='b', label='Pupil center (right)')
-            ax.scatter(*nodal_point.T, c='k', label='Nodal point')
-            plt.grid()
-            ax.auto_scale_xyz([-1, 1], [-1, 1], [0, 8])
-            plt.title('In-camera view')
-            ax.set_xlabel('x (mm)')
-            ax.set_ylabel('y (mm)')
-            ax.set_zlabel('z (mm)')
-            plt.legend()
-            plt.tight_layout()
-            if savefig:
-                plt.savefig('./plots/in_camera_{:04d}.png'.format(i))
-            else:
-                plt.show()
-            plt.close()
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111, projection='3d')
+            # ax.scatter(*np.array(glints_wcs[0][i]).T, c='g', label='Glints (left)')
+            # ax.scatter(*np.array(glints_wcs[1][i]).T, c='y', label='Glints (right)')
+            # ax.scatter(*pupils_wcs[0][i].T, c='r', label='Pupil center (left)')
+            # ax.scatter(*pupils_wcs[1][i].T, c='b', label='Pupil center (right)')
+            # ax.scatter(*nodal_point.T, c='k', label='Nodal point')
+            # plt.grid()
+            # ax.auto_scale_xyz([-1, 1], [-1, 1], [0, 8])
+            # plt.title('In-camera view')
+            # ax.set_xlabel('x (mm)')
+            # ax.set_ylabel('y (mm)')
+            # ax.set_zlabel('z (mm)')
+            # plt.legend()
+            # plt.tight_layout()
+            # if savefig:
+            #     plt.savefig('./plots/in_camera_{:04d}.png'.format(i))
+            # else:
+            #     plt.show()
+            # plt.close()
 
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
@@ -404,9 +475,9 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
             gazepoints[j] = gazepoints[j][abs(gazepoints[j][:, 0]) < 2000]
             gazepoints[j] = gazepoints[j][abs(gazepoints[j][:, 1]) < 2000]
             mindists = mindists[~np.isnan(mindists).any(axis=1)]
-            mindists = mindists[abs(mindists[:, 0]) < 1000]
-            mindists = mindists[abs(mindists[:, 1]) < 1000]
-            mindists = mindists[abs(mindists[:, 2]) < 1000]
+            mindists = mindists[abs(mindists[:, 0]) < 100]
+            mindists = mindists[abs(mindists[:, 1]) < 100]
+            mindists = mindists[abs(mindists[:, 2]) < 100]
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -465,7 +536,20 @@ def main(rng, innerplots=False, outerplots=True, savefig=False):
 if __name__ == '__main__':
 
     # main(1, innerplots=True, outerplots=False, savefig=False)
-    main(len(targets), innerplots=True, outerplots=False, savefig=True)
+    # main(len(targets), innerplots=False, outerplots=True, savefig=False)
+
+    w = []
+    for i in tqdm(range(len(targets)), ncols=80):
+        w.append(with_fsolve([glints[0][0][i], glints[0][1][i]], ppos[0][i]))
+    w = np.array(w)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.scatter(w.T[0], w.T[1])
+    ax.set_xlabel('x (mm)')
+    ax.set_ylabel('y (mm)')
+    plt.tight_layout()
+    plt.show()
 
 #     params = (7.8, 4.75, 5, 1.5, 0.1, 0.1)
 #     bounds = ((4, 12),
@@ -477,7 +561,7 @@ if __name__ == '__main__':
 #     args = (glints[0][0:200],
 #             ppos[0][0:200],
 #             targets[0:200])
-#     kc1 = optimize.minimize(calibrate, params, args=args,
+#     kc1 = minimize(calibrate, params, args=args,
 #                             bounds=bounds,
-#                             method='SLSQP', tol=1e-1)
+#                             method='SLSQP', tol=1e-2)
 #     print(kc1)
