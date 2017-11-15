@@ -206,24 +206,35 @@ def main(glints, pupils):
     kp = -rci - np.sqrt(rci**2 - R**2 - K**2)
     p = r + kp * iota
 
-    # optical axis w defined by c and p
-    w = (p - c) / LA.norm(p - c)
+    # # optical axis w defined by c and p
+    # w = (p - c) / LA.norm(p - c)
 
     #TODO
     #calculate visual axis by rotating optical axis
-    return w
+    return p, c
 
 
 if __name__ == '__main__':
 
-    w = []
+    w, c, p = [], [], []
     for i in tqdm(range(len(targets)), ncols=80):
-        w.append(main([glints[0][0][i], glints[0][1][i]], ppos[0][i]))
-    w = np.array(w)
+        pi, ci = main([glints[0][0][i], glints[0][1][i]], ppos[0][i])
+        wi = (pi - ci) / LA.norm(pi - ci)
+        w.append(wi)
+        c.append(ci)
+        p.append(pi)
+    w = 500 * np.array(w)
+    c = np.array(c)
+    p = np.array(p)
 
     fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.scatter(w.T[0], w.T[1])
+    ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(*w.T)
+    ax.scatter(*np.unique(targets, axis=0).T, [0] * 9, c='k')
+    ax.scatter(*nodal_point.T, c='k', label='Nodal point')
+    for i in range(0, len(targets), 10):
+        ax.plot(*np.array((c[i], c[i] + w[i])).T, c='b', linestyle='--')
+    # ax.auto_scale_xyz([-500, 500], [-500, 500], [-1000, 0])
     ax.set_xlabel('x (mm)')
     ax.set_ylabel('y (mm)')
     plt.tight_layout()
