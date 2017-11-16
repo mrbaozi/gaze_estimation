@@ -34,9 +34,12 @@ class DevNull(object):
 ##
 
 # eye parameters
-K = 4.75
-R = 7.8
-alpha_eye = [5, -5]
+K = 4.2
+R = 8.2
+# K = 4.75
+# R = 7.8
+# alpha_eye = [5, -5]
+alpha_eye = 5
 beta_eye = 1.5
 n1 = 1.3375
 n2 = 1.0
@@ -75,8 +78,8 @@ rpos_r = np.loadtxt('./data/reflexpos_righteye.txt')
 targets = np.loadtxt('./data/targets.txt')
 
 # transform gaze targets from pixel to world coordinates
-targets = 0.282 * targets - np.array([0.282 * 860, 0.282 * 1050 + 36])
-# targets = 0.282 * targets - np.array([0.282 * 860, -36])
+#TODO target coordinates are not quite right
+targets = 0.282 * targets - np.array([0.282 * 860 - 6, 0.282 * 1050 + 36])
 
 glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
           [rpos_r[:, [0, 1]], rpos_r[:, [2, 3]]]]
@@ -155,7 +158,7 @@ def solve_kc_phd2(kq, l1, l2, u1, u2, b, o, r):
 ##
 
 def main(glints, pupils):
-    # variable shorthands for notation simplicity
+    # variable shorthands for notation simplicity (thesis conventions)
     o = nodal_point
     l = source
 
@@ -178,7 +181,7 @@ def main(glints, pupils):
     # bnorm vector
     b = b_norm(l[0], l[1], u[0], u[1], o)
 
-    # # obtain k_c for both glints (method 1)
+    # # obtain c from k_c for both glints (method 1)
     # args = (l[0], u[0], b, o, R)
     # kc1 = fsolve(solve_kc_phd1, 0, args=args)
     # args = (l[1], u[1], b, o, R)
@@ -188,9 +191,10 @@ def main(glints, pupils):
 
     # obtain c from kq (method 2)
     params = (500, 500)
-    bounds = ((1, 1000), (1, 1000))
+    bounds = ((400, 600), (400, 600))
     args = (l[0], l[1], u[0], u[1], b, o, R)
-    kq = minimize(solve_kc_phd2, params, args=args, bounds=bounds, method='SLSQP')
+    kq = minimize(solve_kc_phd2, params, args=args, bounds=bounds,
+                  method='SLSQP', tol=1e-1, options={'maxiter': 1000})
     c1 = curvaturecenter_c(kq.x[0], l[0], u[0], b, o, R)
     c2 = curvaturecenter_c(kq.x[1], l[1], u[1], b, o, R)
     c = (c1 + c2) / 2
@@ -209,33 +213,78 @@ def main(glints, pupils):
     # # optical axis w defined by c and p
     # w = (p - c) / LA.norm(p - c)
 
-    #TODO
-    #calculate visual axis by rotating optical axis
     return p, c
 
 
 if __name__ == '__main__':
 
-    w, c, p = [], [], []
+    p, c = [], []
     for i in tqdm(range(len(targets)), ncols=80):
         pi, ci = main([glints[0][0][i], glints[0][1][i]], ppos[0][i])
-        wi = (pi - ci) / LA.norm(pi - ci)
-        w.append(wi)
-        c.append(ci)
         p.append(pi)
-    w = 500 * np.array(w)
-    c = np.array(c)
+        c.append(ci)
     p = np.array(p)
+    c = np.array(c)
+
+    # calculate optic axis and unit vector to targets from curvature center
+    w = (p - c) / LA.norm(p - c, axis=1)[:, np.newaxis]
+    targets = np.insert(targets, 2, 0, axis=1)
+    v = (targets - c) / LA.norm(targets - c, axis=1)[:, np.newaxis]
+
+    # find rotation matrix between lines
+    R = []
+    for wi, vi in zip(w, v):
+        n = np.cross(wi, vi)
+        sns = LA.norm(n)
+        cns = np.dot(wi, vi)
+        nx = np.array([[0, -n[2], n[1]],
+                       [n[2], 0, -n[0]],
+                       [-n[1], n[0], 0]])
+        Ri = np.identity(3) + nx + nx**2 * (1 - cns) / sns**2
+        R.append(Ri)
+    R = np.array(R)
+
+    w_rot = []
+    for wi, Ri in zip(w, R):
+        # w_rot.append(np.dot(Ri, wi))
+        w_rot.append(np.dot(np.mean(R, axis=0), wi))
+    w_rot = np.array(w_rot)
+
+    # find intersection with screen
+    planeNormal = np.array([0, 0, 1])
+    planePoint = np.array([0, 0, 0])
+    intersect = []
+    for i in range(len(w_rot)):
+        ndotu = np.dot(planeNormal, w_rot[i])
+        wk = (c[i] + w_rot[i]) - planePoint
+        si = np.dot(-planeNormal, wk) / ndotu
+        intersect.append(wk + si * w_rot[i] + planePoint)
+    intersect = np.array(intersect)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(*w.T)
-    ax.scatter(*np.unique(targets, axis=0).T, [0] * 9, c='k')
     ax.scatter(*nodal_point.T, c='k', label='Nodal point')
-    for i in range(0, len(targets), 10):
-        ax.plot(*np.array((c[i], c[i] + w[i])).T, c='b', linestyle='--')
-    # ax.auto_scale_xyz([-500, 500], [-500, 500], [-1000, 0])
+    ax.scatter(*source[0].T, c='k', label='Source 1')
+    ax.scatter(*source[1].T, c='k', label='Source 2')
+    # ax.scatter(*c.T)
+    ax.scatter(*intersect.T)
+    for i in range(0, len(c), 30):
+        ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T, c='b', linestyle='-')
+        ax.plot(*np.array((c[i], c[i] + 400 * w_rot[i])).T, c='g', linestyle='-')
+    for tgt in np.unique(targets, axis=0):
+        ax.scatter(*tgt.T, c='r', marker='x')
+    ax.auto_scale_xyz([-400, 400], [-400, 200], [500, 0])
     ax.set_xlabel('x (mm)')
     ax.set_ylabel('y (mm)')
     plt.tight_layout()
     plt.show()
+
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection='3d')
+#     ax.scatter(*np.unique(targets, axis=0).T, [0] * 9, c='k')
+#     ax.scatter(*nodal_point.T, c='k', label='Nodal point')
+#     ax.scatter(*c.T)
+#     ax.set_xlabel('x (mm)')
+#     ax.set_ylabel('y (mm)')
+#     plt.tight_layout()
+#     plt.show()
