@@ -58,24 +58,24 @@ for i in range(len(ecl)):
     rxr[i][2] += ecr[i][0]
     rxr[i][3] += ecr[i][1]
 
-    # # flip along horizontal axis
-    # ppl[i][1] = 1552 - ppl[i][1]
-    # ppr[i][1] = 1552 - ppr[i][1]
-    # rxl[i][1] = 1552 - rxl[i][1]
-    # rxl[i][3] = 1552 - rxl[i][3]
-    # rxr[i][1] = 1552 - rxr[i][1]
-    # rxr[i][3] = 1552 - rxr[i][3]
+    # flip along horizontal axis
+    ppl[i][1] = 1552 - ppl[i][1]
+    ppr[i][1] = 1552 - ppr[i][1]
+    rxl[i][1] = 1552 - rxl[i][1]
+    rxl[i][3] = 1552 - rxl[i][3]
+    rxr[i][1] = 1552 - rxr[i][1]
+    rxr[i][3] = 1552 - rxr[i][3]
 
-    # # flip along vertical axis
-    # ppl[i][0] = 2080 - ppl[i][0]
-    # ppr[i][0] = 2080 - ppr[i][0]
-    # rxl[i][0] = 2080 - rxl[i][0]
-    # rxl[i][2] = 2080 - rxl[i][2]
-    # rxr[i][0] = 2080 - rxr[i][0]
-    # rxr[i][2] = 2080 - rxr[i][2]
+    # flip along vertical axis
+    ppl[i][0] = 2080 - ppl[i][0]
+    ppr[i][0] = 2080 - ppr[i][0]
+    rxl[i][0] = 2080 - rxl[i][0]
+    rxl[i][2] = 2080 - rxl[i][2]
+    rxr[i][0] = 2080 - rxr[i][0]
+    rxr[i][2] = 2080 - rxr[i][2]
 
-    # flip targets horizontal
-    tgt[i][1] = 1050 - tgt[i][1]
+    # # flip targets horizontal
+    # tgt[i][1] = 1050 - tgt[i][1]
 
     # # flip targets vertical
     # tgt[i][0] = 1680 - tgt[i][0]
