@@ -11,22 +11,10 @@ Equation references (x.xx) in functions correspond to above thesis.
 import sys
 import numpy as np
 import numpy.linalg as LA
-from scipy.optimize import minimize, fsolve
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
-
-
-####
-# Utility
-##
-
-class DevNull(object):
-    """ For deactivating print output (yes, it's hacky af) """
-    def write(self, arg):
-        pass
-    def flush(self):
-        pass
 
 
 ####
@@ -36,14 +24,13 @@ class DevNull(object):
 # eye parameters
 # eye_K = 4.2
 # eye_R = 8.2
-# alpha_eye = [5, -5]
-eye_alpha = 5
-eye_beta = 1.5
+# eye_alpha = [5, -5]
+# eye_beta = 1.5
 n1 = 1.3375
 n2 = 1.0
 
 # camera parameters (from calibration)
-focal_length = 8.42800210895 # in mm
+focal_length = 1. / (1. / 8.42800210895 - 1. / 500.) # in mm
 nodal_x = 2.6996358692163716 # in mm
 nodal_y = 2.2439755534153347 # in mm
 c_center = np.array([1.07985435e+03, 8.97590221e+02])
@@ -51,7 +38,6 @@ f_x = 3.37120084e+03         # in px
 f_y = 3.37462371e+03         # in px
 p_pitch = 0.0025         # 2.5 micro meter pixel size in mm
 phi_cam = -17.0
-# phi_cam = 0.0
 theta_cam = 0.0
 kappa_cam = 0.0
 
@@ -81,8 +67,7 @@ rpos_r = np.loadtxt('./data/reflexpos_righteye.txt')
 targets = np.loadtxt('./data/targets.txt')
 
 # transform gaze targets from pixel to world coordinates
-#TODO target coordinates are not quite right
-targets = 0.282 * targets - np.array([0.282 * 860, 0.282 * 1050 + 36])
+targets = 0.282 * targets - np.array([0.282 * 840, 0.282 * 1050 + 36])
 targets = np.insert(targets, 2, 0, axis=1)
 
 glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
@@ -199,20 +184,35 @@ def calc_centers(glints, pupils, eye_R, eye_K):
     ocov = np.dot(o - c, o - v)
     kr = (-ocov - np.sqrt(ocov**2 - LA.norm(o - v)**2 * (LA.norm(o - c)**2 - eye_R**2))) / LA.norm(o - v)**2
     r = o + kr * (o - v)
+
+    # |r - c| = R
+    np.testing.assert_almost_equal(LA.norm(r - c), eye_R)
+
     nu = (r - c) / eye_R
-    eta = (v - o) / LA.norm(v - o)
-    iota = n2/n1 * ((np.dot(nu, eta) - np.sqrt((n1/n2)**2 - 1 + (np.dot(nu, eta)**2)) * nu) - eta)
+    eta0 = (v - o) / LA.norm(v - o)
+    eta1 = (o - r) / LA.norm(o - r)
+
+    # (o - r) / |o - r| = (v - o) / |v - o|
+    np.testing.assert_almost_equal(eta0, eta1)
+
+    eta = (eta0 + eta1) / 2
+    iota = n2/n1 * ((np.dot(nu, eta) - np.sqrt((n1/n2)**2 - 1 + np.dot(nu, eta)**2)) * nu - eta)
     rci = np.dot(r - c, iota)
-    kp = -rci - np.sqrt(rci**2 - eye_R**2 - eye_K**2)
+    kp = -rci - np.sqrt(rci**2 - (eye_R**2 - eye_K**2))
     p = r + kp * iota
+
+    # |p - c| = K
+    np.testing.assert_almost_equal(LA.norm(p - c), eye_K)
+
+    assert(LA.norm(p - o) < LA.norm(c - o))
 
     return p, c
 
-def calc_gaze(eye_R, eye_K):
+def calc_gaze(eye_R, eye_K, eye_alpha, eye_beta):
     p, c = [], []
-    for i in tqdm(range(len(targets)), ncols=80):
-        # pi, ci = calc_centers([glints[0][0][i], glints[0][1][i]], ppos[0][i], eye_R, eye_K)
-        pi, ci = calc_centers([glints[1][0][i], glints[1][1][i]], ppos[1][i], eye_R, eye_K)
+    for i in tqdm(range(len(ppos[0])), ncols=80):
+        pi, ci = calc_centers([glints[0][0][i], glints[0][1][i]], ppos[0][i], eye_R, eye_K)
+        # pi, ci = calc_centers([glints[1][0][i], glints[1][1][i]], ppos[1][i], eye_R, eye_K)
         p.append(pi)
         c.append(ci)
     p = np.array(p)
@@ -237,9 +237,8 @@ def calc_gaze(eye_R, eye_K):
     R_mean = np.mean(R, axis=0)
 
     w_rot = []
-    for wi, Ri in zip(w, R):
+    for wi in w:
         w_rot.append(np.dot(R_mean, wi))
-        # w_rot.append(np.dot(Ri, wi))
     w_rot = np.array(w_rot)
 
     # find intersection with screen
@@ -254,24 +253,25 @@ def calc_gaze(eye_R, eye_K):
     return intersect, c, w, w_rot
 
 def optimize_gaze(params):
-    R, K = params
-    intersect, c, w, w_rot = calc_gaze(R, K)
+    R, K, alpha, beta = params
+    intersect, c, w, w_rot = calc_gaze(R, K, alpha, beta)
     return np.mean(LA.norm(targets - intersect, axis=1))**2
 
 if __name__ == '__main__':
 
-    # params = (8, 4)
-    # bounds = ((4, 12), (1, 7))
+    # params = (7.8, 4.75, 5, 1.5)
+    # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
     # res = minimize(optimize_gaze, params, bounds=bounds,
-    #                method='SLSQP', tol=1e-1, options={'maxiter': 1000})
+    #                method='SLSQP', tol=1e-3, options={'maxiter': 1000})
     # print(res)
+    # sys.exit(0)
 
     # calibration parameters (R, K)
-    # eye 0: 9.25, 1.13
-    # eye 1: not converging :(
+    # eye 0: 6.200, 5.365
+    # eye 1: TODO not converging :(
 
-    intersect0, c, w, w_rot = calc_gaze(8.2, 4.2)
-    intersect1, c, w, w_rot = calc_gaze(9.25, 1.13)
+    intersect0, c, w, w_rot = calc_gaze(7.8, 4.750, 5.0, 1.5)
+    intersect1, c, w, w_rot = calc_gaze(6.2, 5.365, 5.0, 1.5)
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
