@@ -110,6 +110,35 @@ def j_cam(ic0, jc0, kappa):
     """j_cam (2.26)"""
     return -np.sin(np.deg2rad(kappa)) * ic0 + np.cos(np.deg2rad(kappa)) * jc0
 
+def r_listing(phi, theta):
+    sp = np.sin(np.deg2rad(phi))
+    cp = np.cos(np.deg2rad(phi))
+    st = np.sin(np.deg2rad(theta))
+    ct = np.cos(np.deg2rad(theta))
+    m00 = 1 - (st**2 * cp**2) / (1 + ct * cp)
+    m01 = (-sp * st * cp) / (1 + ct * cp)
+    m02 = -st * cp
+    m10 = (-sp * st * cp) / (1 + ct * cp)
+    m11 = (ct * cp + cp**2) / (1 + ct * cp)
+    m12 = -sp
+    m20 = st * cp
+    m21 = sp
+    m22 = ct * cp
+    return np.array([
+        [m00, m01, m02],
+        [m10, m11, m12],
+        [m20, m21, m22]])
+
+def theta_eye_pp(alpha, beta):
+    sa = np.sin(np.deg2rad(alpha))
+    ca = np.cos(np.deg2rad(alpha))
+    sb = np.sin(np.deg2rad(beta))
+    cb = np.cos(np.deg2rad(beta))
+    return -np.arctan((sa * cb) / (np.sqrt(ca**2 * cb**2 + sb**2)))
+
+def phi_eye_pp(alpha, beta):
+    return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
+
 
 ####
 # Gaze estimation (2.7)
@@ -240,6 +269,13 @@ def calc_gaze(eye_R, eye_K, eye_alpha, eye_beta):
     for wi in w:
         w_rot.append(np.dot(R_mean, wi))
     w_rot = np.array(w_rot)
+
+    # TODO implement listing's law
+    # phi_pp = phi_eye_pp(alpha_eye, beta_eye)
+    # theta_pp = theta_eye_pp(alpha_eye, beta_eye)
+    # t_el = -np.arctan(v[:, 0] / v[:, 2])
+    # p_el = np.arcsin(v[:, 1])
+    # sys.exit(0)
 
     # find intersection with screen
     intersect = []
