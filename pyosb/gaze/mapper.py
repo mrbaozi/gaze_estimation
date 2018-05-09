@@ -19,7 +19,35 @@ from tqdm import tqdm
 
 class GazeMapper(object):
     def __init__(self):
-        pass
+        self.n1 = 1.3375
+        self.n2 = 1.0
+
+    def b_norm(self, l1, l2, u1, u2, o):
+        """intersection of planes (2.28)"""
+        b = np.cross(np.cross(l1 - o, u1 - o),
+                     np.cross(l2 - o, u2 - o))
+        return b / LA.norm(b)
+
+    def curvaturecenter_c(self, kq, l, u, b, o, r):
+        ou_n = (o - u) / LA.norm(o - u)
+        q = o + kq * ou_n
+        oq_n = (o - q) / LA.norm(o - q)
+        lq_n = (l - q) / LA.norm(l - q)
+        return(q - r * ((lq_n + oq_n) / LA.norm(lq_n + oq_n)))
+
+    def solve_kc_phd1(self, kc, l, u, b, o, r):
+        ou_n = (o - u) / LA.norm(o - u)
+        kq = kc * np.dot(ou_n, b) - np.sqrt(kc**2 * np.dot(ou_n, b)**2 - kc**2 + r**2)
+        q = o + kq * ou_n
+        oq_n = (o - q) / LA.norm(o - q)
+        lq_n = (l - q) / LA.norm(l - q)
+        return np.dot(lq_n - oq_n, q - o + kc * b)
+
+    def solve_kc_phd2(self, kq, l1, l2, u1, u2, b, o, r):
+        c1 = curvaturecenter_c(kq[0], l1, u1, b, o, r)
+        c2 = curvaturecenter_c(kq[1], l2, u2, b, o, r)
+        return LA.norm(c1 - c2)**2
+
 
 
 ####
