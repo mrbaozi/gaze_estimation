@@ -4,6 +4,7 @@
 import configargparse
 from pyosb.fileio.eyeosbparser import EyeInfoParser
 from pyosb.preprocess.preprocess import Preprocessor
+from pyosb.gaze.mapper import GazeMapper
 
 
 def main(options):
@@ -17,6 +18,8 @@ def main(options):
 
     # final dataframe
     df = pp.get_dataframe()
+
+    mapper = GazeMapper()
 
 
 if __name__ == '__main__':
