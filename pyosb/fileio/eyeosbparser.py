@@ -8,54 +8,29 @@ import pandas as pd
 from pandas.io.json import json_normalize
 
 
-class EyeInfoParser():
+class EyeInfoParser(object):
     def __init__(self, args=None):
         if args == None:
             print("No arguments given to EyeInfoParser constructor. " +
                   "Either pass args to constructor or specify them explicitly.")
         else:
-            self.experimentsFolder = args.experimentsfolder
-            self.outputFile = args.parsedf
-            self.jsonFiles = self.get_filenames()
+            self.recording = args.recording
+            self.outputFile = args.output_dataframe
             self.jsonData = self.load_json()
-            self.dataFrames = self.json_to_pandas()
-            self.dataFrame = pd.concat(self.dataFrames)
+            self.dataFrame = self.json_to_pandas()
 
-    def get_filenames(self, folder=None):
-        if folder == None:
-            folder = self.experimentsFolder
-
-        files = []
-        for dirpath, dirnames, filenames in os.walk(folder):
-            for filename in [f for f in filenames if f.endswith(".json")]:
-                files.append(os.path.join(dirpath, filename))
-
-        return files
-
-    def load_json(self, jsonfiles=None):
-        if jsonfiles == None:
-            jsonfiles = self.jsonFiles
-
-        jsondata = []
-        for jsonfile in jsonfiles:
-            with open(jsonfile) as data:
-                jsondata.append(json.loads(self.preprocess(data)))
-
+    def load_json(self, jsonfile=None):
+        if jsonfile == None:
+            jsonfile = self.recording
+        with open(jsonfile) as data:
+            jsondata = json.loads(self.preprocess(data))
         return jsondata
 
-    def json_to_pandas(self, jsonfiles=None, jsondata=None):
-        if jsonfiles == None:
-            jsonfiles = self.jsonFiles
+    def json_to_pandas(self, jsondata=None):
         if jsondata == None:
             jsondata = self.jsonData
-
-        dataframes = []
-        for experiment, data in zip(jsonfiles, jsondata):
-            df = json_normalize(data)
-            df['experiment'] = os.path.splitext(os.path.basename(experiment))[0]
-            dataframes.append(df)
-
-        return dataframes
+        df = json_normalize(jsondata)
+        return df
 
     def preprocess(self, jsonfile):
         """
@@ -82,5 +57,7 @@ class EyeInfoParser():
     def df_to_file(self, filename=None):
         if filename == None:
             filename = self.outputFile
+        self.dataFrame.to_pickle(filename)
 
-        self.dataFrame.to_pickle("./" + filename)
+    def get_dataframe(self):
+        return self.dataFrame
