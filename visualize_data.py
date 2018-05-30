@@ -29,5 +29,6 @@ def main():
     ax[1].scatter(reflex_right.T[2], reflex_right.T[3], marker='.', s=1)
     plt.show()
 
+
 if __name__ == '__main__':
     main()

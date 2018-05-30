@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import re
-import json
-import pandas as pd
-from pandas.io.json import json_normalize
-
 
 class Preprocessor(object):
     def __init__(self, dataframe, args):
@@ -42,17 +36,25 @@ class Preprocessor(object):
 
     def fliplr(self):
         for eye in ['left_eye', 'right_eye']:
-            self.dataFrame[eye + '.pupilpos.x'] = self.cam_x - self.dataFrame[eye + '.pupilpos.x']
-            self.dataFrame[eye + '.reflex_center.x'] = self.cam_x - self.dataFrame[eye + '.reflex_center.x']
-            self.dataFrame[eye + '.reflexpos.left.x'] = self.cam_x - self.dataFrame[eye + '.reflexpos.left.x']
-            self.dataFrame[eye + '.reflexpos.right.x'] = self.cam_x - self.dataFrame[eye + '.reflexpos.right.x']
+            self.dataFrame[eye + '.pupilpos.x'] = \
+                self.cam_x - self.dataFrame[eye + '.pupilpos.x']
+            self.dataFrame[eye + '.reflex_center.x'] = \
+                self.cam_x - self.dataFrame[eye + '.reflex_center.x']
+            self.dataFrame[eye + '.reflexpos.left.x'] = \
+                self.cam_x - self.dataFrame[eye + '.reflexpos.left.x']
+            self.dataFrame[eye + '.reflexpos.right.x'] = \
+                self.cam_x - self.dataFrame[eye + '.reflexpos.right.x']
 
     def flipud(self):
         for eye in ['left_eye', 'right_eye']:
-            self.dataFrame[eye + '.pupilpos.y'] = self.cam_y - self.dataFrame[eye + '.pupilpos.y']
-            self.dataFrame[eye + '.reflex_center.y'] = self.cam_y - self.dataFrame[eye + '.reflex_center.y']
-            self.dataFrame[eye + '.reflexpos.left.y'] = self.cam_y - self.dataFrame[eye + '.reflexpos.left.y']
-            self.dataFrame[eye + '.reflexpos.right.y'] = self.cam_y - self.dataFrame[eye + '.reflexpos.right.y']
+            self.dataFrame[eye + '.pupilpos.y'] = \
+                self.cam_y - self.dataFrame[eye + '.pupilpos.y']
+            self.dataFrame[eye + '.reflex_center.y'] = \
+                self.cam_y - self.dataFrame[eye + '.reflex_center.y']
+            self.dataFrame[eye + '.reflexpos.left.y'] = \
+                self.cam_y - self.dataFrame[eye + '.reflexpos.left.y']
+            self.dataFrame[eye + '.reflexpos.right.y'] = \
+                self.cam_y - self.dataFrame[eye + '.reflexpos.right.y']
 
     def get_dataframe(self):
         return self.dataFrame

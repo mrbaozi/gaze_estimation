@@ -27,7 +27,8 @@ if __name__ == '__main__':
                                  ignore_unknown_config_file_keys=True)
     p.add('--config', is_config_file=True, help='Config file path')
     p.add('--recording', type=str, help='Input recording (json)')
-    p.add('--output_dataframe', type=str, help='Output file for parsed recording')
+    p.add('--output_dataframe', type=str,
+          help='Output file for parsed recording')
     p.add('--screen_x', type=int, help='Screen x resolution')
     p.add('--screen_y', type=int, help='Screen y resolution')
     p.add('--cam_x', type=int, help='Screen x resolution')

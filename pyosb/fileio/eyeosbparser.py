@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import re
 import json
-import pandas as pd
 from pandas.io.json import json_normalize
 
 
 class EyeInfoParser(object):
     def __init__(self, args=None):
-        if args == None:
+        if args is None:
             print("No arguments given to EyeInfoParser constructor. " +
-                  "Either pass args to constructor or specify them explicitly.")
+                  "Either pass args to constructor or specify them explicitly."
+                  )
         else:
             self.recording = args.recording
             self.outputFile = args.output_dataframe
@@ -20,14 +19,14 @@ class EyeInfoParser(object):
             self.dataFrame = self.json_to_pandas()
 
     def load_json(self, jsonfile=None):
-        if jsonfile == None:
+        if jsonfile is None:
             jsonfile = self.recording
         with open(jsonfile) as data:
             jsondata = json.loads(self.preprocess(data))
         return jsondata
 
     def json_to_pandas(self, jsondata=None):
-        if jsondata == None:
+        if jsondata is None:
             jsondata = self.jsonData
         df = json_normalize(jsondata)
         return df
@@ -55,7 +54,7 @@ class EyeInfoParser(object):
         return s
 
     def df_to_file(self, filename=None):
-        if filename == None:
+        if filename is None:
             filename = self.outputFile
         self.dataFrame.to_pickle(filename)
 

@@ -14,13 +14,16 @@ reflexpos = []
 target = []
 
 for frame in data:
-    if ('pupilpos' in frame['left_eye']) \
-            and ('pupilpos' in frame['right_eye']) \
-            and ('reflexpos' in frame['left_eye']) \
-            and ('reflexpos' in frame['right_eye']):
-        eyecoords.append([frame['left_eye']['eyecoords'], frame['right_eye']['eyecoords']])
-        pupilpos.append([frame['left_eye']['pupilpos'], frame['right_eye']['pupilpos']])
-        reflexpos.append([frame['left_eye']['reflexpos'], frame['right_eye']['reflexpos']])
+    if (('pupilpos' in frame['left_eye'])
+            and ('pupilpos' in frame['right_eye'])
+            and ('reflexpos' in frame['left_eye'])
+            and ('reflexpos' in frame['right_eye'])):
+        eyecoords.append([frame['left_eye']['eyecoords'],
+                          frame['right_eye']['eyecoords']])
+        pupilpos.append([frame['left_eye']['pupilpos'],
+                         frame['right_eye']['pupilpos']])
+        reflexpos.append([frame['left_eye']['reflexpos'],
+                          frame['right_eye']['reflexpos']])
         target.append([frame['gaze_target']])
 
 ecl, ecr = [], []
@@ -33,9 +36,9 @@ for coord, ppos, rpos, tget in zip(eyecoords, pupilpos, reflexpos, target):
     ppl.append([float(ppos[0]['x']), float(ppos[0]['y'])])
     ppr.append([float(ppos[1]['x']), float(ppos[1]['y'])])
     tgt.append([1680 * float(tget[0]['x']), 1050 * float(tget[0]['y'])])
-    rxl.append([float(rpos[0][0]['x']), float(rpos[0][0]['y']), \
+    rxl.append([float(rpos[0][0]['x']), float(rpos[0][0]['y']),
                 float(rpos[0][1]['x']), float(rpos[0][1]['y'])])
-    rxr.append([float(rpos[1][0]['x']), float(rpos[1][0]['y']), \
+    rxr.append([float(rpos[1][0]['x']), float(rpos[1][0]['y']),
                 float(rpos[1][1]['x']), float(rpos[1][1]['y'])])
 
 ecl = np.array(ecl)

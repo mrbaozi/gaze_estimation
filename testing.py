@@ -3,9 +3,6 @@
 
 import logging
 import configparser
-from time import sleep
-import multiprocessing as mp
-import numpy as np
 
 from modules.PyOSBReceiver import PyOSBReceiver
 
