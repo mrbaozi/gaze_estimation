@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import configargparse
+import matplotlib.pyplot as plt
 from pyosb.fileio.eyeosbparser import EyeInfoParser
 from pyosb.preprocess.preprocess import Preprocessor
 from pyosb.gaze.mapper import GazeMapper
@@ -13,13 +14,17 @@ def main(options):
     pp = Preprocessor(parser.get_dataframe(), options)
     pp.rescale_to_screen('gaze_target')
     pp.fix_reflex_positions()
-    # pp.fliplr()
-    # pp.flipud()
+    pp.fliplr()
+    pp.flipud()
 
     # final dataframe
     df = pp.get_dataframe()
+    print(df.keys())
+    df.plot.scatter(x='left_eye.pupilpos.x', y='left_eye.pupilpos.y')
+    # df.plot.scatter(x='gaze_target.x', y='gaze_target.y')
+    plt.show()
 
-    mapper = GazeMapper()
+    # mapper = GazeMapper()
 
 
 if __name__ == '__main__':

@@ -30,6 +30,7 @@ class Preprocessor(object):
         for eye in ['left_eye', 'right_eye']:
             for xy in ['x', 'y']:
                 eyecoord = self.dataFrame[eye + '.eyecoords.' + xy]
+                self.dataFrame[eye + '.pupilpos.' + xy] += eyecoord
                 self.dataFrame[eye + '.reflex_center.' + xy] += eyecoord
                 self.dataFrame[eye + '.reflexpos.left.' + xy] += eyecoord
                 self.dataFrame[eye + '.reflexpos.right.' + xy] += eyecoord
