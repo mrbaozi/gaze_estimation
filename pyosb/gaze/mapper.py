@@ -35,15 +35,25 @@ glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
 ppos = [ppos_l, ppos_r]
 
 
-class GazeMapper(object):
+class Geometry(object):
     def __init__(self):
+        pass
+
+
+class GazeMapper(object):
+    def __init__(self, args):
         # eye parameters
         # eye_K = 4.2
         # eye_R = 8.2
         # eye_alpha = [5, -5]
         # eye_beta = 1.5
-        self.n1 = 1.3375
-        self.n2 = 1.0
+        self.n1 = args.n1
+        self.n2 = args.n2
+
+        # screen parameters
+        self.screen_x = args.screen_x
+        self.screen_y = args.screen_y
+        self.screen_pp = args.screen_pp
 
         # camera parameters (from calibration)
         self.focal_length = 1. / (1. / 8.42800210895 - 1. / 500.)  # in mm
@@ -52,10 +62,10 @@ class GazeMapper(object):
         self.c_center = np.array([1.07985435e+03, 8.97590221e+02])
         self.f_x = 3.37120084e+03                                  # in px
         self.f_y = 3.37462371e+03                                  # in px
-        self.p_pitch = 0.0025                                      # 2.5 mu m
-        self.phi_cam = -17.0
-        self.theta_cam = 0.0
-        self.kappa_cam = 0.0
+        self.p_pitch = args.pixel_pitch
+        self.phi_cam = args.phi_cam
+        self.theta_cam = args.theta_cam
+        self.kappa_cam = args.kappa_cam
 
         # position of nodal point of camera
         self.nodal_point = np.array([0, 0, self.focal_length])

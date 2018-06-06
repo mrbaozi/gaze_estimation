@@ -21,10 +21,12 @@ def main(options):
     df = pp.get_dataframe()
     print(df.keys())
     df.plot.scatter(x='left_eye.pupilpos.x', y='left_eye.pupilpos.y')
+    # df.plot.scatter(x='left_eye.gazepos.x', y='left_eye.gazepos.y')
+    # df.plot.scatter(x='right_eye.pupilpos.x', y='right_eye.pupilpos.y')
     # df.plot.scatter(x='gaze_target.x', y='gaze_target.y')
     plt.show()
 
-    # mapper = GazeMapper()
+    # mapper = GazeMapper(options)
 
 
 if __name__ == '__main__':
