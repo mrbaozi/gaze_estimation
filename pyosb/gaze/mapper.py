@@ -8,6 +8,7 @@ Equation references (x.xx) in functions correspond to above thesis.
 """
 
 
+import sys
 import numpy as np
 import numpy.linalg as LA
 from scipy.optimize import minimize
@@ -20,19 +21,19 @@ from tqdm import tqdm
 # Data points
 ##
 
-ppos_l = np.loadtxt('./data/pupilpos_lefteye.txt')
-ppos_r = np.loadtxt('./data/pupilpos_righteye.txt')
-rpos_l = np.loadtxt('./data/reflexpos_lefteye.txt')
-rpos_r = np.loadtxt('./data/reflexpos_righteye.txt')
-targets = np.loadtxt('./data/targets.txt')
+# ppos_l = np.loadtxt('./data/pupilpos_lefteye.txt')
+# ppos_r = np.loadtxt('./data/pupilpos_righteye.txt')
+# rpos_l = np.loadtxt('./data/reflexpos_lefteye.txt')
+# rpos_r = np.loadtxt('./data/reflexpos_righteye.txt')
+# targets = np.loadtxt('./data/targets.txt')
 
-# transform gaze targets from pixel to world coordinates
-targets = 0.282 * targets - np.array([0.282 * 840, 0.282 * 1050 + 36])
-targets = np.insert(targets, 2, 0, axis=1)
+# # transform gaze targets from pixel to world coordinates
+# targets = 0.282 * targets - np.array([0.282 * 840, 0.282 * 1050 + 36])
+# targets = np.insert(targets, 2, 0, axis=1)
 
-glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
-          [rpos_r[:, [0, 1]], rpos_r[:, [2, 3]]]]
-ppos = [ppos_l, ppos_r]
+# glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
+#           [rpos_r[:, [0, 1]], rpos_r[:, [2, 3]]]]
+# ppos = [ppos_l, ppos_r]
 
 
 class Geometry(object):
@@ -41,7 +42,10 @@ class Geometry(object):
 
 
 class GazeMapper(object):
-    def __init__(self, args):
+    def __init__(self, args, df):
+        # data
+        self.df = df
+
         # eye parameters
         # eye_K = 4.2
         # eye_R = 8.2
@@ -62,7 +66,7 @@ class GazeMapper(object):
         self.c_center = np.array([1.07985435e+03, 8.97590221e+02])
         self.f_x = 3.37120084e+03                                  # in px
         self.f_y = 3.37462371e+03                                  # in px
-        self.p_pitch = args.pixel_pitch
+        self.cam_pp = args.cam_pp
         self.phi_cam = args.phi_cam
         self.theta_cam = args.theta_cam
         self.kappa_cam = args.kappa_cam
@@ -184,9 +188,9 @@ class GazeMapper(object):
         ijkcam = np.array([icam, jcam, kcam])
 
         # transform image to camera coordinates
-        u = [self.to_ccs(glints[0], self.c_center, self.p_pitch),
-             self.to_ccs(glints[1], self.c_center, self.p_pitch)]
-        v = self.to_ccs(pupils, self.c_center, self.p_pitch)
+        u = [self.to_ccs(glints[0], self.c_center, self.cam_pp),
+             self.to_ccs(glints[1], self.c_center, self.cam_pp)]
+        v = self.to_ccs(pupils, self.c_center, self.cam_pp)
         u[0] = self.to_wcs(ijkcam, u[0], self.t_trans)
         u[1] = self.to_wcs(ijkcam, u[1], self.t_trans)
         v = self.to_wcs(ijkcam, v, self.t_trans)
