@@ -42,9 +42,15 @@ class Geometry(object):
 
 
 class GazeMapper(object):
-    def __init__(self, args, df):
+    def __init__(self, args, data):
         # data
-        self.df = df
+        self.data = data
+
+        print(self.data.keys())
+        print(self.data['light'].shape)
+        print(self.data['reflex'].shape)
+        print(self.data['pupil'].shape)
+        print(self.data['target'].shape)
 
         # eye parameters
         # eye_K = 4.2
@@ -54,11 +60,6 @@ class GazeMapper(object):
         self.n1 = args.n1
         self.n2 = args.n2
 
-        # screen parameters
-        self.screen_x = args.screen_x
-        self.screen_y = args.screen_y
-        self.screen_pp = args.screen_pp
-
         # camera parameters (from calibration)
         self.focal_length = 1. / (1. / 8.42800210895 - 1. / 500.)  # in mm
         self.nodal_x = 2.6996358692163716                          # in mm
@@ -66,10 +67,6 @@ class GazeMapper(object):
         self.c_center = np.array([1.07985435e+03, 8.97590221e+02])
         self.f_x = 3.37120084e+03                                  # in px
         self.f_y = 3.37462371e+03                                  # in px
-        self.cam_pp = args.cam_pp
-        self.phi_cam = args.phi_cam
-        self.theta_cam = args.theta_cam
-        self.kappa_cam = args.kappa_cam
 
         # position of nodal point of camera
         self.nodal_point = np.array([0, 0, self.focal_length])
@@ -81,9 +78,6 @@ class GazeMapper(object):
         # screen plane definition
         self.screenNormal = np.array([0, 0, 1])
         self.screenPoint = np.array([0, 0, 0])
-
-        # ccs to wcs translation vector
-        self.t_trans = np.array([0, 0, 0])
 
     def b_norm(self, l1, l2, u1, u2, o):
         """intersection of planes (2.28)"""
@@ -180,11 +174,11 @@ class GazeMapper(object):
         l = self.source
 
         # determine coordinate transformation parameters
-        kcam = self.k_cam(self.phi_cam, self.theta_cam)
+        kcam = self.k_cam(self.cam_phi, self.cam_theta)
         ic0 = self.i_cam_0(np.array([0, 1, 0]), kcam)
         jc0 = self.j_cam_0(kcam, ic0)
-        icam = self.i_cam(ic0, jc0, self.kappa_cam)
-        jcam = self.j_cam(ic0, jc0, self.kappa_cam)
+        icam = self.i_cam(ic0, jc0, self.cam_kappa)
+        jcam = self.j_cam(ic0, jc0, self.cam_kappa)
         ijkcam = np.array([icam, jcam, kcam])
 
         # transform image to camera coordinates
