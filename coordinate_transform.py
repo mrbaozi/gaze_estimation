@@ -14,13 +14,13 @@ def rotation_matrix(theta, axis):
     R = [[ca + xx * (1 - ca), xy * (1 - ca) - z * sa, xz * (1 - ca) + y * sa],
          [xy * (1 - ca) + z * sa, ca + yy * (1 - ca), yz * (1 - ca) - x * sa],
          [xz * (1 - ca) - y * sa, yz * (1 - ca) + x * sa, ca + zz * (1 - ca)]]
-    return np.asarray(R)
+    return np.array(R)
 
 
 R = rotation_matrix(30, [1, 0, 0])
 n_points = 2
 
-node_ccs = np.asarray([0, 0, 8])
+node_ccs = np.array([0, 0, 8])
 node_wcs = np.dot(node_ccs, R)  # inverse rotation (R*x != x*R)
 
 _x = np.linspace(-50, 50, n_points)

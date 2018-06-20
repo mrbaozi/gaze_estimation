@@ -12,8 +12,7 @@ def main(options):
     # create pandas dataframe from json recordings and do some preprocessing
     parser = EyeInfoParser(options)
     pp = Preprocessor(parser.get_dataframe(), options)
-    pp.preprocess_all()
-    df = pp.get_dataframe()
+    data = pp.get_wcs_data()
 
     df = pp.get_dataframe()
     for key in df.keys():
