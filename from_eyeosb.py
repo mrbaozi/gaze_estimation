@@ -15,41 +15,33 @@ def main(options):
     pp.preprocess_all()
     df = pp.get_dataframe()
 
+    df = pp.get_dataframe()
     for key in df.keys():
-        if all(ss not in key for ss in ["gaze"]):
-            print("{0: <30} {1}".format(key, df[key][0]))
+        print("{0: <30} {1}".format(key, df[key][0]))
 
-    fig, ax = plt.subplots(1, 1)
-
-    ax.scatter(df['left_eye.pupilpos.x'], df['left_eye.pupilpos.y'])
-    ax.scatter(df['left_eye.reflexpos.left.x'],
-               df['left_eye.reflexpos.left.y'], marker='.')
-    ax.scatter(df['left_eye.reflexpos.right.x'],
-               df['left_eye.reflexpos.right.y'], marker='.')
-    # ax.scatter(df['left_eye.reflex_center.x'],
-    #            df['left_eye.reflex_center.y'], marker='.')
-    ax.scatter(df['right_eye.pupilpos.x'], df['right_eye.pupilpos.y'])
-    ax.scatter(df['right_eye.reflexpos.left.x'],
-               df['right_eye.reflexpos.left.y'], marker='.')
-    ax.scatter(df['right_eye.reflexpos.right.x'],
-               df['right_eye.reflexpos.right.y'], marker='.')
-    # ax.scatter(df['right_eye.reflex_center.x'],
-    #            df['right_eye.reflex_center.y'], marker='.')
-    ax.set_xlim([0, options.cam_x * options.cam_pp])
-    ax.set_ylim([options.cam_y * options.cam_pp, 0])
+    fig, ax = plt.subplots(2, 1)
+    ax[0].scatter(df['left_eye.pupilpos.x'], df['left_eye.pupilpos.y'])
+    ax[0].scatter(df['left_eye.reflexpos.left.x'],
+                  df['left_eye.reflexpos.left.y'], marker='.')
+    ax[0].scatter(df['left_eye.reflexpos.right.x'],
+                  df['left_eye.reflexpos.right.y'], marker='.')
+    ax[0].scatter(df['right_eye.pupilpos.x'], df['right_eye.pupilpos.y'])
+    ax[0].scatter(df['right_eye.reflexpos.left.x'],
+                  df['right_eye.reflexpos.left.y'], marker='.')
+    ax[0].scatter(df['right_eye.reflexpos.right.x'],
+                  df['right_eye.reflexpos.right.y'], marker='.')
+    ax[1].scatter(df['gaze_target.x'], df['gaze_target.y'])
+    ax[1].scatter(df['gaze_point.x'], df['gaze_point.y'], marker='x')
+    ax[1].scatter(df['left_eye.gazepos.x'],
+                  df['left_eye.gazepos.y'], marker='.')
+    ax[1].scatter(df['right_eye.gazepos.x'],
+                  df['right_eye.gazepos.y'], marker='.')
+    ax[1].set_xlim([-options.screen_res[0] * options.screen_pp / 2,
+                    options.screen_res[0] * options.screen_pp / 2])
+    ax[1].set_ylim([options.screen_res[1] * options.screen_pp, 0])
     plt.show()
 
-    # ax.scatter(df['gaze_target.x'], df['gaze_target.y'])
-    # ax.scatter(df['gaze_point.x'], df['gaze_point.y'], marker='x')
-    # ax.scatter(df['left_eye.gazepos.x'],
-    #            df['left_eye.gazepos.y'], marker='.')
-    # ax.scatter(df['right_eye.gazepos.x'],
-    #            df['right_eye.gazepos.y'], marker='.')
-    # ax.set_xlim([0, options.screen_x * options.screen_pp])
-    # ax.set_ylim([options.screen_y * options.screen_pp, 0])
-    # plt.show()
-
-    mapper = GazeMapper(options, df)
+    mapper = GazeMapper(options, data)
 
 
 if __name__ == '__main__':
