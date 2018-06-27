@@ -241,9 +241,11 @@ class GazeMapper(object):
         return p, c
 
     def calc_gaze(self):
-        eye = 0
-        p, c = [], []
+        p_left, c_left = [], []
+        p_right, c_right = [], []
         for index in tqdm(range(self.data['target'].shape[1]), ncols=80):
+            # calculate left eye
+            eye = 0
             pi, ci = self.calc_centers(
                 self.data['pupil'][eye, :, index],
                 self.data['light'][0, :],
@@ -252,10 +254,23 @@ class GazeMapper(object):
                 self.data['reflex'][eye, 1, :, index],
                 self.nodal_point,
             )
-            p.append(pi)
-            c.append(ci)
-        p = np.array(p)
-        c = np.array(c)
+            p_left.append(pi)
+            c_left.append(ci)
+
+            # calculate right eye
+            eye = 1
+            pi, ci = self.calc_centers(
+                self.data['pupil'][eye, :, index],
+                self.data['light'][0, :],
+                self.data['light'][1, :],
+                self.data['reflex'][eye, 0, :, index],
+                self.data['reflex'][eye, 1, :, index],
+                self.nodal_point,
+            )
+            p_right.append(pi)
+            c_right.append(ci)
+        p = (np.array(p_left) + np.array(p_right)) / 2
+        c = (np.array(c_left) + np.array(c_right)) / 2
 
         # calculate optic axis and unit vector to targets from curvature center
         w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
