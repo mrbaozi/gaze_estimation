@@ -27,6 +27,7 @@ class GazeMapper(object):
         print(self.data['reflex'].shape)
         print(self.data['pupil'].shape)
         print(self.data['target'].shape)
+        print(self.data['screen_rotation'].shape)
 
         # eye parameters
         self.eye_K = args.K
@@ -43,8 +44,8 @@ class GazeMapper(object):
         self.nodal_point = np.array([0, 0, self.focal_length])
 
         # screen plane definition
-        self.screenNormal = np.array([0, 0, 1])
-        self.screenPoint = np.array([0, 0, 0])
+        self.screenNormal = self.data['screen_rotation'].dot(np.array([0, 0, 1]))
+        self.screenPoint = self.data['target'][:, 0]
 
         # params = (7.8, 4.75, 5, 1.5)
         # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
@@ -75,9 +76,10 @@ class GazeMapper(object):
                     c='g', linestyle='-')
         for tgt in np.unique(self.data['target'].T, axis=0):
             ax.scatter(*tgt.T, c='k', marker='x')
-        ax.auto_scale_xyz([-400, 400], [-400, 200], [500, 0])
+        ax.auto_scale_xyz([-300, 300], [0, 300], [1000, 0])
         ax.set_xlabel('x (mm)')
         ax.set_ylabel('y (mm)')
+        ax.set_zlabel('z (mm)')
         plt.tight_layout()
         plt.show()
         plt.close()

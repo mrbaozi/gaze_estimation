@@ -147,6 +147,7 @@ class Preprocessor(object):
             [self.dataFrame['gaze_target.x'],
              self.dataFrame['gaze_target.y'],
              self.dataFrame['gaze_target.z']])
+        data['screen_rotation'] = self.rot
         return data
 
     def rescale_to_screen(self, key, screen_x=None, screen_y=None):
