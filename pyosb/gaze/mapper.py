@@ -10,35 +10,11 @@ Equation references (x.xx) in functions correspond to above thesis.
 
 import sys
 import numpy as np
-import numpy.linalg as LA
+import numpy.linalg as la
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
-
-
-####
-# Data points
-##
-
-# ppos_l = np.loadtxt('./data/pupilpos_lefteye.txt')
-# ppos_r = np.loadtxt('./data/pupilpos_righteye.txt')
-# rpos_l = np.loadtxt('./data/reflexpos_lefteye.txt')
-# rpos_r = np.loadtxt('./data/reflexpos_righteye.txt')
-# targets = np.loadtxt('./data/targets.txt')
-
-# # transform gaze targets from pixel to world coordinates
-# targets = 0.282 * targets - np.array([0.282 * 840, 0.282 * 1050 + 36])
-# targets = np.insert(targets, 2, 0, axis=1)
-
-# glints = [[rpos_l[:, [0, 1]], rpos_l[:, [2, 3]]],
-#           [rpos_r[:, [0, 1]], rpos_r[:, [2, 3]]]]
-# ppos = [ppos_l, ppos_r]
-
-
-class Geometry(object):
-    def __init__(self):
-        pass
 
 
 class GazeMapper(object):
@@ -53,58 +29,87 @@ class GazeMapper(object):
         print(self.data['target'].shape)
 
         # eye parameters
-        # eye_K = 4.2
-        # eye_R = 8.2
-        # eye_alpha = [5, -5]
-        # eye_beta = 1.5
+        self.eye_K = args.K
+        self.eye_R = args.R
+        self.eye_alpha = args.alpha
+        self.eye_beta = args.beta
         self.n1 = args.n1
         self.n2 = args.n2
 
         # camera parameters (from calibration)
-        self.focal_length = 1. / (1. / 8.42800210895 - 1. / 500.)  # in mm
-        self.nodal_x = 2.6996358692163716                          # in mm
-        self.nodal_y = 2.2439755534153347                          # in mm
-        self.c_center = np.array([1.07985435e+03, 8.97590221e+02])
-        self.f_x = 3.37120084e+03                                  # in px
-        self.f_y = 3.37462371e+03                                  # in px
+        self.focal_length = args.cam_focal
 
-        # position of nodal point of camera
+        # wcs position of nodal point of camera
         self.nodal_point = np.array([0, 0, self.focal_length])
-
-        # position of light source 1, 2
-        self.source = np.array([[-110, -390, 0],
-                                [110, -390, 0]])
 
         # screen plane definition
         self.screenNormal = np.array([0, 0, 1])
         self.screenPoint = np.array([0, 0, 0])
 
+        # params = (7.8, 4.75, 5, 1.5)
+        # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
+        # res = minimize(optimize_gaze, params, bounds=bounds,
+        #                method='SLSQP', tol=1e-3, options={'maxiter': 1000})
+        # print(res)
+        # sys.exit(0)
+
+        # calibration parameters (R, K)
+        # eye 0: 6.200, 5.365
+        # eye 1: TODO not converging :(
+
+        # test gaze center calculation
+        intersect0, c, w, w_rot = self.calc_gaze()
+        # intersect1, c, w, w_rot = self.calc_gaze(6.2, 5.365, 5.0, 1.5)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(*self.nodal_point.T, c='k', label='Nodal point')
+        ax.scatter(*self.data['light'][0].T, c='k', label='Source 1')
+        ax.scatter(*self.data['light'][1].T, c='k', label='Source 2')
+        ax.scatter(*intersect0.T, c='c', marker='.', linewidth=0.1)
+        # ax.scatter(*intersect1.T, c='m', marker='.', linewidth=0.1)
+        for i in range(0, len(c), 30):
+            ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
+                    c='b', linestyle='-')
+            ax.plot(*np.array((c[i], c[i] + 400 * w_rot[i])).T,
+                    c='g', linestyle='-')
+        for tgt in np.unique(self.data['target'].T, axis=0):
+            ax.scatter(*tgt.T, c='k', marker='x')
+        ax.auto_scale_xyz([-400, 400], [-400, 200], [500, 0])
+        ax.set_xlabel('x (mm)')
+        ax.set_ylabel('y (mm)')
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+
     def b_norm(self, l1, l2, u1, u2, o):
-        """intersection of planes (2.28)"""
+        """intersection of planes (3.8)"""
         b = np.cross(np.cross(l1 - o, u1 - o),
                      np.cross(l2 - o, u2 - o))
-        return b / LA.norm(b)
+        return b / la.norm(b)
 
     def curvaturecenter_c(self, kq, l, u, b, o, r):
-        ou_n = (o - u) / LA.norm(o - u)
+        ou_n = (o - u) / la.norm(o - u)
         q = o + kq * ou_n
-        oq_n = (o - q) / LA.norm(o - q)
-        lq_n = (l - q) / LA.norm(l - q)
-        return(q - r * ((lq_n + oq_n) / LA.norm(lq_n + oq_n)))
+        oq_n = (o - q) / la.norm(o - q)
+        lq_n = (l - q) / la.norm(l - q)
+        return(q - r * ((lq_n + oq_n) / la.norm(lq_n + oq_n)))
 
     def solve_kc_phd1(self, kc, l, u, b, o, r):
-        ou_n = (o - u) / LA.norm(o - u)
+        ou_n = (o - u) / la.norm(o - u)
         kq = (kc * np.dot(ou_n, b)
               - np.sqrt(kc**2 * np.dot(ou_n, b)**2 - kc**2 + r**2))
         q = o + kq * ou_n
-        oq_n = (o - q) / LA.norm(o - q)
-        lq_n = (l - q) / LA.norm(l - q)
+        oq_n = (o - q) / la.norm(o - q)
+        lq_n = (l - q) / la.norm(l - q)
         return np.dot(lq_n - oq_n, q - o + kc * b)
 
     def solve_kc_phd2(self, kq, l1, l2, u1, u2, b, o, r):
+        """minimization problem (3.11)"""
         c1 = self.curvaturecenter_c(kq[0], l1, u1, b, o, r)
         c2 = self.curvaturecenter_c(kq[1], l2, u2, b, o, r)
-        return LA.norm(c1 - c2)**2
+        return la.norm(c1 - c2)**2
 
     def to_ccs(self, pt, center, pitch):
         """ics to ccs (2.27)"""
@@ -123,7 +128,7 @@ class GazeMapper(object):
 
     def i_cam_0(self, j, k):
         """i_cam_0 (2.23)"""
-        return np.cross(j, k) / LA.norm(np.cross(j, k))
+        return np.cross(j, k) / la.norm(np.cross(j, k))
 
     def j_cam_0(self, k, ic0):
         """j_cam_0 (2.24)"""
@@ -168,94 +173,100 @@ class GazeMapper(object):
     def phi_eye_pp(self, alpha, beta):
         return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
 
-    def calc_centers(self, glints, pupils, eye_R, eye_K):
+    def calc_centers(self, pupil, light1, light2, glint1, glint2, node):
         # variable shorthands for notation simplicity (thesis conventions)
-        o = self.nodal_point
-        l = self.source
-
-        # determine coordinate transformation parameters
-        kcam = self.k_cam(self.cam_phi, self.cam_theta)
-        ic0 = self.i_cam_0(np.array([0, 1, 0]), kcam)
-        jc0 = self.j_cam_0(kcam, ic0)
-        icam = self.i_cam(ic0, jc0, self.cam_kappa)
-        jcam = self.j_cam(ic0, jc0, self.cam_kappa)
-        ijkcam = np.array([icam, jcam, kcam])
-
-        # transform image to camera coordinates
-        u = [self.to_ccs(glints[0], self.c_center, self.cam_pp),
-             self.to_ccs(glints[1], self.c_center, self.cam_pp)]
-        v = self.to_ccs(pupils, self.c_center, self.cam_pp)
-        u[0] = self.to_wcs(ijkcam, u[0], self.t_trans)
-        u[1] = self.to_wcs(ijkcam, u[1], self.t_trans)
-        v = self.to_wcs(ijkcam, v, self.t_trans)
+        v = pupil
+        l1 = light1
+        l2 = light2
+        u1 = glint1
+        u2 = glint2
+        o = node
 
         # bnorm vector
-        b = self.b_norm(l[0], l[1], u[0], u[1], o)
+        b = self.b_norm(l1, l2, u1, u2, o)
 
-        # obtain c from kq (method 2)
+        # obtain c (center of corneal curvature) from kq (method 2)
         params = (500, 500)
-        bounds = ((400, 600), (400, 600))
-        args = (l[0], l[1], u[0], u[1], b, o, eye_R)
+        bounds = ((200, 1000), (200, 1000))
+        args = (l1, l2, u1, u2, b, o, self.eye_R)
         kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
-                      method='SLSQP', tol=1e-3, options={'maxiter': 1000})
-        c1 = self.curvaturecenter_c(kq.x[0], l[0], u[0], b, o, eye_R)
-        c2 = self.curvaturecenter_c(kq.x[1], l[1], u[1], b, o, eye_R)
+                      method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
+        # mean of both results (3.12)
+        c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, self.eye_R)
+        c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, self.eye_R)
         c = (c1 + c2) / 2
 
-        # calculate coordinate of pupil center
+        # kr (3.29)
         ocov = np.dot(o - c, o - v)
-        kr = ((-ocov - np.sqrt(ocov**2 - LA.norm(o - v)**2
-                               * (LA.norm(o - c)**2 - eye_R**2)))
-              / LA.norm(o - v)**2)
+        kr = ((-ocov - np.sqrt(ocov**2 - la.norm(o - v)**2
+                               * (la.norm(o - c)**2 - self.eye_R**2)))
+              / la.norm(o - v)**2)
+
+        # sanity check |r - c| = R (2.42 & 2.43)
         r = o + kr * (o - v)
+        np.testing.assert_almost_equal(la.norm(r - c), self.eye_R)
 
-        # |r - c| = R
-        np.testing.assert_almost_equal(LA.norm(r - c), eye_R)
-
-        nu = (r - c) / eye_R
-        eta0 = (v - o) / LA.norm(v - o)
-        eta1 = (o - r) / LA.norm(o - r)
-
-        # (o - r) / |o - r| = (v - o) / |v - o|
+        # (3.32)
+        nu = (r - c) / self.eye_R
+        # both of (3.31)
+        eta0 = (v - o) / la.norm(v - o)
+        eta1 = (o - r) / la.norm(o - r)
+        # and check if (3.31) holds
         np.testing.assert_almost_equal(eta0, eta1)
 
+        # can use either one but hey...
         eta = (eta0 + eta1) / 2
-        iota = self.n2/self.n1 * ((np.dot(nu, eta)
-                                   - np.sqrt((self.n1/self.n2)**2 - 1
-                                             + np.dot(nu, eta)**2))
-                                  * nu - eta)
+
+        # iota from (3.33)
+        iota = self.n2 / self.n1 * (
+            (np.dot(nu, eta) - np.sqrt((self.n1/self.n2)**2
+                                       - 1 + np.dot(nu, eta)**2)) * nu - eta
+        )
+
+        # kp (3.37)
         rci = np.dot(r - c, iota)
-        kp = -rci - np.sqrt(rci**2 - (eye_R**2 - eye_K**2))
+        kp = -rci - np.sqrt(rci**2 - (self.eye_R**2 - self.eye_K**2))
+
+        # p (3.34)
         p = r + kp * iota
 
-        # |p - c| = K
-        np.testing.assert_almost_equal(LA.norm(p - c), eye_K)
+        # |p - c| = K (3.35)
+        np.testing.assert_almost_equal(la.norm(p - c), self.eye_K)
 
-        assert(LA.norm(p - o) < LA.norm(c - o))
+        # satisfy constraint (3.36)
+        np.testing.assert_array_less(la.norm(p - o), la.norm(c - o))
 
         return p, c
 
-    def calc_gaze(self, eye_R, eye_K, eye_alpha, eye_beta):
+    def calc_gaze(self):
+        eye = 0
         p, c = [], []
-        for i in tqdm(range(len(ppos[0])), ncols=80):
-            pi, ci = self.calc_centers([glints[0][0][i], glints[0][1][i]],
-                                       ppos[0][i], eye_R, eye_K)
-            # pi, ci = self.calc_centers([glints[1][0][i], glints[1][1][i]],
-            #                       ppos[1][i], eye_R, eye_K)
+        for index in tqdm(range(self.data['target'].shape[1]), ncols=80):
+            pi, ci = self.calc_centers(
+                self.data['pupil'][eye, :, index],
+                self.data['light'][0, :],
+                self.data['light'][1, :],
+                self.data['reflex'][eye, 0, :, index],
+                self.data['reflex'][eye, 1, :, index],
+                self.nodal_point,
+            )
             p.append(pi)
             c.append(ci)
         p = np.array(p)
         c = np.array(c)
 
         # calculate optic axis and unit vector to targets from curvature center
-        w = (p - c) / LA.norm(p - c, axis=1)[:, np.newaxis]
-        v = (targets - c) / LA.norm(targets - c, axis=1)[:, np.newaxis]
+        w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
+        v = (
+            (self.data['target'].T - c)
+            / la.norm(self.data['target'].T - c, axis=1)[:, np.newaxis]
+        )
 
         # find rotation matrix between optic and target vectors
         R = []
         for wi, vi in zip(w, v):
             n = np.cross(wi, vi)
-            sns = LA.norm(n)
+            sns = la.norm(n)
             cns = np.dot(wi, vi)
             nx = np.array([[0, -n[2], n[1]],
                            [n[2], 0, -n[0]],
@@ -291,41 +302,4 @@ class GazeMapper(object):
     def optimize_gaze(self, params):
         R, K, alpha, beta = params
         intersect, c, w, w_rot = self.calc_gaze(R, K, alpha, beta)
-        return np.mean(LA.norm(targets - intersect, axis=1))**2
-
-
-# if __name__ == '__main__':
-#     # params = (7.8, 4.75, 5, 1.5)
-#     # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
-#     # res = minimize(optimize_gaze, params, bounds=bounds,
-#     #                method='SLSQP', tol=1e-3, options={'maxiter': 1000})
-#     # print(res)
-#     # sys.exit(0)
-
-#     # calibration parameters (R, K)
-#     # eye 0: 6.200, 5.365
-#     # eye 1: TODO not converging :(
-
-#     intersect0, c, w, w_rot = calc_gaze(7.8, 4.750, 5.0, 1.5)
-#     intersect1, c, w, w_rot = calc_gaze(6.2, 5.365, 5.0, 1.5)
-
-#     fig = plt.figure()
-#     ax = fig.add_subplot(111, projection='3d')
-#     ax.scatter(*nodal_point.T, c='k', label='Nodal point')
-#     ax.scatter(*source[0].T, c='k', label='Source 1')
-#     ax.scatter(*source[1].T, c='k', label='Source 2')
-#     ax.scatter(*intersect0.T, c='c', marker='.', linewidth=0.1)
-#     ax.scatter(*intersect1.T, c='m', marker='.', linewidth=0.1)
-#     for i in range(0, len(c), 30):
-#         ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T, c='b', linestyle='-')
-#         ax.plot(*np.array((c[i], c[i] + 400 * w_rot[i])).T, c='g',
-#                 linestyle='-')
-#     for tgt in np.unique(targets, axis=0):
-#         ax.scatter(*tgt.T, c='k', marker='x')
-#     ax.auto_scale_xyz([-400, 400], [-400, 200], [500, 0])
-#     ax.set_xlabel('x (mm)')
-#     ax.set_ylabel('y (mm)')
-#     plt.tight_layout()
-#     plt.show()
-#     plt.close()
-
+        return np.mean(la.norm(self.data['target'] - intersect, axis=1))**2
