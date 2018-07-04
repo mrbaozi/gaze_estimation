@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def rotate_axis(theta, axis):
@@ -33,8 +34,48 @@ class Preprocessor(object):
         self.rot_z = rotate_axis(args.cam_kappa, [0, 0, 1])
         self.rot = self.rot_x.dot(self.rot_y).dot(self.rot_z)
 
+    def show(self):
+        if not self.preprocessed:
+            self.preprocess_all()
+        fig, ax = plt.subplots(2, 1)
+        ax[0].scatter(self.dataFrame['left_eye.pupilpos.x'],
+                      self.dataFrame['left_eye.pupilpos.y'])
+        ax[0].scatter(self.dataFrame['left_eye.reflexpos.left.x'],
+                      self.dataFrame['left_eye.reflexpos.left.y'],
+                      marker='.')
+        ax[0].scatter(self.dataFrame['left_eye.reflexpos.right.x'],
+                      self.dataFrame['left_eye.reflexpos.right.y'],
+                      marker='.')
+        ax[0].scatter(self.dataFrame['right_eye.pupilpos.x'],
+                      self.dataFrame['right_eye.pupilpos.y'])
+        ax[0].scatter(self.dataFrame['right_eye.reflexpos.left.x'],
+                      self.dataFrame['right_eye.reflexpos.left.y'],
+                      marker='.')
+        ax[0].scatter(self.dataFrame['right_eye.reflexpos.right.x'],
+                      self.dataFrame['right_eye.reflexpos.right.y'],
+                      marker='.')
+        ax[0].set_title("Camera sensor")
+        ax[0].set_xlabel("x (mm)")
+        ax[0].set_ylabel("y (mm)")
+        ax[1].scatter(self.dataFrame['gaze_target.x'],
+                      self.dataFrame['gaze_target.y'])
+        ax[1].scatter(self.dataFrame['gaze_point.x'],
+                      self.dataFrame['gaze_point.y'],
+                      marker='x')
+        ax[1].scatter(self.dataFrame['left_eye.gazepos.x'],
+                      self.dataFrame['left_eye.gazepos.y'],
+                      marker='.')
+        ax[1].scatter(self.dataFrame['right_eye.gazepos.x'],
+                      self.dataFrame['right_eye.gazepos.y'],
+                      marker='.')
+        ax[1].set_title("Screen")
+        ax[1].set_xlabel("x (mm)")
+        ax[1].set_ylabel("y (mm)")
+        plt.tight_layout()
+        plt.show()
+
+
     def preprocess_all(self):
-        self.preprocessed = True
         self.fix_reflex_positions()
         for key in self.dataFrame.keys():
             if "gaze" in key:
@@ -95,6 +136,9 @@ class Preprocessor(object):
         # --> maybe fix that (not important for current recordings)
         self.dataFrame = self.dataFrame[(self.dataFrame['left_eye.complete']) &
                                         (self.dataFrame['right_eye.complete'])]
+
+        # we are done, set flag
+        self.preprocessed = True
 
     def fliplr(self):
         for eye in ['left_eye', 'right_eye']:

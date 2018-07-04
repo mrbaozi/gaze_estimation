@@ -12,33 +12,8 @@ def main(options):
     # create pandas dataframe from json recordings and do some preprocessing
     parser = EyeInfoParser(options)
     pp = Preprocessor(parser.get_dataframe(), options)
+    # pp.show()
     data = pp.get_wcs_data()
-
-    # df = pp.get_dataframe()
-    # for key in df.keys():
-    #     print("{0: <30} {1}".format(key, df[key][0]))
-
-    # fig, ax = plt.subplots(2, 1)
-    # ax[0].scatter(df['left_eye.pupilpos.x'], df['left_eye.pupilpos.y'])
-    # ax[0].scatter(df['left_eye.reflexpos.left.x'],
-    #               df['left_eye.reflexpos.left.y'], marker='.')
-    # ax[0].scatter(df['left_eye.reflexpos.right.x'],
-    #               df['left_eye.reflexpos.right.y'], marker='.')
-    # ax[0].scatter(df['right_eye.pupilpos.x'], df['right_eye.pupilpos.y'])
-    # ax[0].scatter(df['right_eye.reflexpos.left.x'],
-    #               df['right_eye.reflexpos.left.y'], marker='.')
-    # ax[0].scatter(df['right_eye.reflexpos.right.x'],
-    #               df['right_eye.reflexpos.right.y'], marker='.')
-    # ax[1].scatter(df['gaze_target.x'], df['gaze_target.y'])
-    # ax[1].scatter(df['gaze_point.x'], df['gaze_point.y'], marker='x')
-    # ax[1].scatter(df['left_eye.gazepos.x'],
-    #               df['left_eye.gazepos.y'], marker='.')
-    # ax[1].scatter(df['right_eye.gazepos.x'],
-    #               df['right_eye.gazepos.y'], marker='.')
-    # ax[1].set_xlim([-options.screen_res[0] * options.screen_pp / 2,
-    #                 options.screen_res[0] * options.screen_pp / 2])
-    # ax[1].set_ylim([options.screen_res[1] * options.screen_pp, 0])
-    # plt.show()
 
     mapper = GazeMapper(options, data)
 
