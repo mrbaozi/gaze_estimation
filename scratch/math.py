@@ -60,11 +60,11 @@ t_trans = np.array([0, 0, 0])
 # Data points
 ##
 
-ppos_l = np.loadtxt('./data/pupilpos_lefteye.txt')
-ppos_r = np.loadtxt('./data/pupilpos_righteye.txt')
-rpos_l = np.loadtxt('./data/reflexpos_lefteye.txt')
-rpos_r = np.loadtxt('./data/reflexpos_righteye.txt')
-targets = np.loadtxt('./data/targets.txt')
+ppos_l = np.loadtxt('../data/pupilpos_lefteye.txt')
+ppos_r = np.loadtxt('../data/pupilpos_righteye.txt')
+rpos_l = np.loadtxt('../data/reflexpos_lefteye.txt')
+rpos_r = np.loadtxt('../data/reflexpos_righteye.txt')
+targets = np.loadtxt('../data/targets.txt')
 
 # transform gaze targets from pixel to world coordinates
 targets = 0.282 * targets - np.array([0.282 * 840, 0.282 * 1050 + 36])

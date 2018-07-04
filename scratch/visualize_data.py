@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    targets = np.loadtxt('./data/targets.txt')
-    ppos_left = np.loadtxt('./data/pupilpos_lefteye.txt')
-    ppos_right = np.loadtxt('./data/pupilpos_righteye.txt')
-    reflex_left = np.loadtxt('./data/reflexpos_lefteye.txt')
-    reflex_right = np.loadtxt('./data/reflexpos_righteye.txt')
+    targets = np.loadtxt('../data/targets.txt')
+    ppos_left = np.loadtxt('../data/pupilpos_lefteye.txt')
+    ppos_right = np.loadtxt('../data/pupilpos_righteye.txt')
+    reflex_left = np.loadtxt('../data/reflexpos_lefteye.txt')
+    reflex_right = np.loadtxt('../data/reflexpos_righteye.txt')
 
     print(reflex_left.T)
 

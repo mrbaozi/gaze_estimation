@@ -13,7 +13,7 @@ logging.basicConfig(format=FMT, datefmt=DATEFMT, level=logging.INFO)
 
 
 config = configparser.ConfigParser()
-config.read('./config/config.ini')
+config.read('../config/config.ini')
 
 R = config.getfloat('parameters', 'R')
 K = config.getfloat('parameters', 'K')

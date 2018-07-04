@@ -5,7 +5,7 @@ import json
 import numpy as np
 from pprint import pprint
 
-with open('./recordings/evaluation_grid_9x9_noflip.json') as f:
+with open('../recordings/evaluation_grid_9x9_noflip.json') as f:
     data = json.load(f)
 
 eyecoords = []
@@ -83,8 +83,8 @@ for i in range(len(ecl)):
     # # flip targets vertical
     # tgt[i][0] = 1680 - tgt[i][0]
 
-np.savetxt('./data/pupilpos_lefteye.txt', ppl)
-np.savetxt('./data/pupilpos_righteye.txt', ppr)
-np.savetxt('./data/reflexpos_lefteye.txt', rxl)
-np.savetxt('./data/reflexpos_righteye.txt', rxr)
-np.savetxt('./data/targets.txt', tgt)
+np.savetxt('../data/pupilpos_lefteye.txt', ppl)
+np.savetxt('../data/pupilpos_righteye.txt', ppr)
+np.savetxt('../data/reflexpos_lefteye.txt', rxl)
+np.savetxt('../data/reflexpos_righteye.txt', rxr)
+np.savetxt('../data/targets.txt', tgt)
