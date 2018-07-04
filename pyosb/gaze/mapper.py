@@ -47,19 +47,19 @@ class GazeMapper(object):
         self.screenNormal = self.data['screen_rotation'].dot(np.array([0, 0, 1]))
         self.screenPoint = self.data['target'][:, 0]
 
-        # params = (7.8, 4.75, 5, 1.5)
-        # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
-        # res = minimize(optimize_gaze, params, bounds=bounds,
-        #                method='SLSQP', tol=1e-3, options={'maxiter': 1000})
-        # print(res)
-        # sys.exit(0)
+        params = (self.eye_R, self.eye_K)
+        bounds = ((6.2, 9.4), (3.8, 5.7))
+        res = minimize(self.optimize_gaze, params, bounds=bounds,
+                       method='SLSQP', tol=1e-3, options={'maxiter': 1000})
+        print(res)
+        sys.exit(0)
 
         # calibration parameters (R, K)
         # eye 0: 6.200, 5.365
         # eye 1: TODO not converging :(
 
         # test gaze center calculation
-        intersect0, c, w, w_rot = self.calc_gaze()
+        intersect0, c, w, w_rot = self.calc_gaze(self.eye_R, self.eye_K)
         # intersect1, c, w, w_rot = self.calc_gaze(6.2, 5.365, 5.0, 1.5)
 
         fig = plt.figure()
@@ -175,7 +175,7 @@ class GazeMapper(object):
     def phi_eye_pp(self, alpha, beta):
         return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
 
-    def calc_centers(self, pupil, light1, light2, glint1, glint2, node):
+    def calc_centers(self, pupil, light1, light2, glint1, glint2, node, R, K):
         # variable shorthands for notation simplicity (thesis conventions)
         v = pupil
         l1 = light1
@@ -190,26 +190,26 @@ class GazeMapper(object):
         # obtain c (center of corneal curvature) from kq (method 2)
         params = (500, 500)
         bounds = ((200, 1000), (200, 1000))
-        args = (l1, l2, u1, u2, b, o, self.eye_R)
+        args = (l1, l2, u1, u2, b, o, R)
         kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
                       method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
         # mean of both results (3.12)
-        c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, self.eye_R)
-        c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, self.eye_R)
+        c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, R)
+        c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, R)
         c = (c1 + c2) / 2
 
         # kr (3.29)
         ocov = np.dot(o - c, o - v)
         kr = ((-ocov - np.sqrt(ocov**2 - la.norm(o - v)**2
-                               * (la.norm(o - c)**2 - self.eye_R**2)))
+                               * (la.norm(o - c)**2 - R**2)))
               / la.norm(o - v)**2)
 
         # sanity check |r - c| = R (2.42 & 2.43)
         r = o + kr * (o - v)
-        np.testing.assert_almost_equal(la.norm(r - c), self.eye_R)
+        np.testing.assert_almost_equal(la.norm(r - c), R)
 
         # (3.32)
-        nu = (r - c) / self.eye_R
+        nu = (r - c) / R
         # both of (3.31)
         eta0 = (v - o) / la.norm(v - o)
         eta1 = (o - r) / la.norm(o - r)
@@ -227,23 +227,25 @@ class GazeMapper(object):
 
         # kp (3.37)
         rci = np.dot(r - c, iota)
-        kp = -rci - np.sqrt(rci**2 - (self.eye_R**2 - self.eye_K**2))
+        kp = -rci - np.sqrt(rci**2 - (R**2 - K**2))
 
         # p (3.34)
         p = r + kp * iota
 
         # |p - c| = K (3.35)
-        np.testing.assert_almost_equal(la.norm(p - c), self.eye_K)
+        np.testing.assert_almost_equal(la.norm(p - c), K)
 
         # satisfy constraint (3.36)
         np.testing.assert_array_less(la.norm(p - o), la.norm(c - o))
 
         return p, c
 
-    def calc_gaze(self):
-        eye = 0
-        p, c = [], []
+    def calc_gaze(self, R, K):
+        p_left, c_left = [], []
+        p_right, c_right = [], []
         for index in tqdm(range(self.data['target'].shape[1]), ncols=80):
+            # calculate left eye
+            eye = 0
             pi, ci = self.calc_centers(
                 self.data['pupil'][eye, :, index],
                 self.data['light'][0, :],
@@ -251,11 +253,28 @@ class GazeMapper(object):
                 self.data['reflex'][eye, 0, :, index],
                 self.data['reflex'][eye, 1, :, index],
                 self.nodal_point,
+                R,
+                K,
             )
-            p.append(pi)
-            c.append(ci)
-        p = np.array(p)
-        c = np.array(c)
+            p_left.append(pi)
+            c_left.append(ci)
+
+            # calculate right eye
+            eye = 1
+            pi, ci = self.calc_centers(
+                self.data['pupil'][eye, :, index],
+                self.data['light'][0, :],
+                self.data['light'][1, :],
+                self.data['reflex'][eye, 0, :, index],
+                self.data['reflex'][eye, 1, :, index],
+                self.nodal_point,
+                R,
+                K,
+            )
+            p_right.append(pi)
+            c_right.append(ci)
+        p = (np.array(p_left) + np.array(p_right)) / 2
+        c = (np.array(c_left) + np.array(c_right)) / 2
 
         # calculate optic axis and unit vector to targets from curvature center
         w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
@@ -302,6 +321,6 @@ class GazeMapper(object):
         return intersect, c, w, w_rot
 
     def optimize_gaze(self, params):
-        R, K, alpha, beta = params
-        intersect, c, w, w_rot = self.calc_gaze(R, K, alpha, beta)
-        return np.mean(la.norm(self.data['target'] - intersect, axis=1))**2
+        R, K = params
+        intersect, c, w, w_rot = self.calc_gaze(R, K)
+        return np.mean(la.norm(self.data['target'].T - intersect, axis=1))**2
