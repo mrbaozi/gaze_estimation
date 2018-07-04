@@ -45,6 +45,11 @@ class GazeMapper(object):
         # load/save this from/to some file in the future
         self.ov_rot = None
 
+        # calibration or gaze calculation
+        self.is_calibration = False
+        self.last_objective = 0
+        self.iterations = 0
+
     def calc_ov_rot(self, w, v):
         # find rotation matrix between optic and target vectors
         R = []
@@ -65,10 +70,14 @@ class GazeMapper(object):
             x0 = (self.eye_R, self.eye_K)
         if bounds is None:
             bounds = ((6.2, 9.4), (3.8, 5.7))
+        self.is_calibration = True
         res = minimize(self.optimize_gaze, x0=x0,
                        args=(eye, recalc_rot, interval),
                        bounds=bounds, method='SLSQP',
-                       tol=1e-3, options={'maxiter': 1000})
+                       tol=1e-3, options={'maxiter': 1000, 'disp': True})
+        self.is_calibration = False
+        self.iterations = 0
+        self.last_objective = 0
         print(res)
 
     def show(self, intersect0, c, w, w_rot):
@@ -268,7 +277,8 @@ class GazeMapper(object):
         c = [[], []]
         for idx in tqdm(range(0,
                               self.data['target'].shape[1],
-                              interval), ncols=80):
+                              interval), ncols=80,
+                        disable=self.is_calibration):
             # calculate left eye
             for i in eye_idx:
                 pi, ci = self.calc_centers(
@@ -328,5 +338,14 @@ class GazeMapper(object):
         R, K = x0
         intersect, c, w, w_rot = self.calc_gaze(R, K, eye,
                                                 recalc_rot, interval)
-        return np.mean(la.norm(
-            self.data['target'][:, ::interval].T - intersect, axis=1))**2
+        objective = np.mean(la.norm(
+            self.data['target'][:, ::interval].T - intersect, axis=1)**2)
+        self.iterations += 1
+
+        print(f"Iteration {self.iterations}:")
+        print(f"Objective function value: {objective} | "
+              f"delta = {objective - self.last_objective}\n")
+
+        self.last_objective = objective
+
+        return objective

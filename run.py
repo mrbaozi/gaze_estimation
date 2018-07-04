@@ -19,7 +19,7 @@ def main(options):
     # mapper.show(*mapper.calc_gaze(eye='left', recalc_rot=False))
     # mapper.show(*mapper.calc_gaze(eye='right', recalc_rot=False))
     # mapper.show(*mapper.calc_gaze(eye='both', recalc_rot=False))
-    mapper.calibrate(eye='both', recalc_rot=False, interval=10)
+    mapper.calibrate(eye='both', recalc_rot=False, interval=1)
 
 
 if __name__ == '__main__':
