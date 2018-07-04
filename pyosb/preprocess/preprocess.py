@@ -41,19 +41,20 @@ class Preprocessor(object):
                 # convert gaze from [0, 1] to pixels
                 self.rescale_to_screen(key)
                 if ".x" in key:
+                    # flip left/right
+                    self.dataFrame[key] = self.screen_res[0] - self.dataFrame[key]
                     # recenter origin (middle of screen is zero)
                     self.dataFrame[key] -= self.screen_res[0] / 2
+                if ".y" in key:
+                    # flip up/down
+                    self.dataFrame[key] = self.screen_res[1] - self.dataFrame[key]
                 # convert pixels to mm
                 self.dataFrame[key] *= self.screen_pp
             if any(s in key for s in ["reflex", "pupil", "eyecoords"]):
                 if ".x" in key:
-                    # flip left/right
-                    self.dataFrame[key] = self.cam_res[0] - self.dataFrame[key]
                     # recenter coordinates to cam midpoint (from calibration)
                     self.dataFrame[key] -= self.cam_center[0]
                 if ".y" in key:
-                    # flip up/down
-                    self.dataFrame[key] = self.cam_res[1] - self.dataFrame[key]
                     # recenter coordinates to cam midpoint (from calibration)
                     self.dataFrame[key] -= self.cam_center[1]
                 # convert cam pixels to mm
