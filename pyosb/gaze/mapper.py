@@ -22,13 +22,6 @@ class GazeMapper(object):
         # data
         self.data = data
 
-        print(self.data.keys())
-        print(self.data['light'].shape)
-        print(self.data['reflex'].shape)
-        print(self.data['pupil'].shape)
-        print(self.data['target'].shape)
-        print(self.data['screen_rotation'].shape)
-
         # eye parameters
         self.eye_K = args.K
         self.eye_R = args.R
@@ -44,24 +37,41 @@ class GazeMapper(object):
         self.nodal_point = np.array([0, 0, self.focal_length])
 
         # screen plane definition
-        self.screenNormal = self.data['screen_rotation'].dot(np.array([0, 0, 1]))
+        self.screenNormal = np.dot(self.data['screen_rotation'],
+                                   np.array([0, 0, 1]))
         self.screenPoint = self.data['target'][:, 0]
 
-        params = (self.eye_R, self.eye_K)
-        bounds = ((6.2, 9.4), (3.8, 5.7))
-        res = minimize(self.optimize_gaze, params, bounds=bounds,
-                       method='SLSQP', tol=1e-3, options={'maxiter': 1000})
+        # rotation matrix between optical and visual axis
+        # load/save this from/to some file in the future
+        self.ov_rot = None
+
+    def calc_ov_rot(self, w, v):
+        # find rotation matrix between optic and target vectors
+        R = []
+        for wi, vi in zip(w, v):
+            n = np.cross(wi, vi)
+            sns = la.norm(n)
+            cns = np.dot(wi, vi)
+            nx = np.array([[0, -n[2], n[1]],
+                           [n[2], 0, -n[0]],
+                           [-n[1], n[0], 0]])
+            Ri = np.identity(3) + nx + nx**2 * (1 - cns) / sns**2
+            R.append(Ri)
+        return np.mean(np.array(R), axis=0)
+
+    def calibrate(self, eye='both', recalc_rot=False, interval=1,
+                  x0=None, bounds=None):
+        if x0 is None:
+            x0 = (self.eye_R, self.eye_K)
+        if bounds is None:
+            bounds = ((6.2, 9.4), (3.8, 5.7))
+        res = minimize(self.optimize_gaze, x0=x0,
+                       args=(eye, recalc_rot, interval),
+                       bounds=bounds, method='SLSQP',
+                       tol=1e-3, options={'maxiter': 1000})
         print(res)
-        sys.exit(0)
 
-        # calibration parameters (R, K)
-        # eye 0: 6.200, 5.365
-        # eye 1: TODO not converging :(
-
-        # test gaze center calculation
-        intersect0, c, w, w_rot = self.calc_gaze(self.eye_R, self.eye_K)
-        # intersect1, c, w, w_rot = self.calc_gaze(6.2, 5.365, 5.0, 1.5)
-
+    def show(self, intersect0, c, w, w_rot):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
         ax.scatter(*self.nodal_point.T, c='k', label='Nodal point')
@@ -83,7 +93,6 @@ class GazeMapper(object):
         plt.tight_layout()
         plt.show()
         plt.close()
-
 
     def b_norm(self, l1, l2, u1, u2, o):
         """intersection of planes (3.8)"""
@@ -240,66 +249,61 @@ class GazeMapper(object):
 
         return p, c
 
-    def calc_gaze(self, R, K):
-        p_left, c_left = [], []
-        p_right, c_right = [], []
-        for index in tqdm(range(self.data['target'].shape[1]), ncols=80):
-            # calculate left eye
-            eye = 0
-            pi, ci = self.calc_centers(
-                self.data['pupil'][eye, :, index],
-                self.data['light'][0, :],
-                self.data['light'][1, :],
-                self.data['reflex'][eye, 0, :, index],
-                self.data['reflex'][eye, 1, :, index],
-                self.nodal_point,
-                R,
-                K,
-            )
-            p_left.append(pi)
-            c_left.append(ci)
+    def calc_gaze(self, R=None, K=None, eye='both',
+                  recalc_rot=True, interval=1):
+        if R is None:
+            R = self.eye_R
+        if K is None:
+            K = self.eye_K
 
-            # calculate right eye
-            eye = 1
-            pi, ci = self.calc_centers(
-                self.data['pupil'][eye, :, index],
-                self.data['light'][0, :],
-                self.data['light'][1, :],
-                self.data['reflex'][eye, 0, :, index],
-                self.data['reflex'][eye, 1, :, index],
-                self.nodal_point,
-                R,
-                K,
-            )
-            p_right.append(pi)
-            c_right.append(ci)
-        p = (np.array(p_left) + np.array(p_right)) / 2
-        c = (np.array(c_left) + np.array(c_right)) / 2
+        # eye_idx = None
+        if eye == 'left':
+            eye_idx = [0]
+        elif eye == 'right':
+            eye_idx = [1]
+        elif eye == 'both':
+            eye_idx = [0, 1]
+
+        p = [[], []]
+        c = [[], []]
+        for idx in tqdm(range(0,
+                              self.data['target'].shape[1],
+                              interval), ncols=80):
+            # calculate left eye
+            for i in eye_idx:
+                pi, ci = self.calc_centers(
+                    self.data['pupil'][i, :, idx],
+                    self.data['light'][0, :],
+                    self.data['light'][1, :],
+                    self.data['reflex'][i, 0, :, idx],
+                    self.data['reflex'][i, 1, :, idx],
+                    self.nodal_point,
+                    R,
+                    K,
+                )
+                p[i].append(pi)
+                c[i].append(ci)
+
+        if eye == 'both':
+            p = (np.array(p[0]) + np.array(p[1])) / 2
+            c = (np.array(c[0]) + np.array(c[1])) / 2
+        else:
+            p = np.array(p[eye_idx[0]])
+            c = np.array(c[eye_idx[0]])
 
         # calculate optic axis and unit vector to targets from curvature center
         w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
         v = (
-            (self.data['target'].T - c)
-            / la.norm(self.data['target'].T - c, axis=1)[:, np.newaxis]
+            (self.data['target'][:, ::interval].T - c)
+            / la.norm(self.data['target'][:, ::interval].T - c, axis=1)[:, np.newaxis]
         )
 
-        # find rotation matrix between optic and target vectors
-        R = []
-        for wi, vi in zip(w, v):
-            n = np.cross(wi, vi)
-            sns = la.norm(n)
-            cns = np.dot(wi, vi)
-            nx = np.array([[0, -n[2], n[1]],
-                           [n[2], 0, -n[0]],
-                           [-n[1], n[0], 0]])
-            Ri = np.identity(3) + nx + nx**2 * (1 - cns) / sns**2
-            R.append(Ri)
-        R = np.array(R)
-        R_mean = np.mean(R, axis=0)
+        if recalc_rot or self.ov_rot is None:
+            self.ov_rot = self.calc_ov_rot(w, v)
 
         w_rot = []
         for wi in w:
-            w_rot.append(np.dot(R_mean, wi))
+            w_rot.append(np.dot(self.ov_rot, wi))
         w_rot = np.array(w_rot)
 
         # TODO implement listing's law
@@ -320,7 +324,9 @@ class GazeMapper(object):
 
         return intersect, c, w, w_rot
 
-    def optimize_gaze(self, params):
-        R, K = params
-        intersect, c, w, w_rot = self.calc_gaze(R, K)
-        return np.mean(la.norm(self.data['target'].T - intersect, axis=1))**2
+    def optimize_gaze(self, x0, eye, recalc_rot, interval):
+        R, K = x0
+        intersect, c, w, w_rot = self.calc_gaze(R, K, eye,
+                                                recalc_rot, interval)
+        return np.mean(la.norm(
+            self.data['target'][:, ::interval].T - intersect, axis=1))**2
