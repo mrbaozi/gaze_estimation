@@ -1,6 +1,7 @@
 # exclude folders
 plots/
 video/
+archives/
 
 # binary recordings (too large)
 *.dat
