@@ -65,14 +65,15 @@ class GazeMapper(object):
         return np.mean(np.array(R), axis=0)
 
     def calibrate(self, eye='both', recalc_rot=False, interval=1,
-                  x0=None, bounds=None):
+                  x0=None, bounds=None,
+                  refraction_type='explicit'):
         if x0 is None:
             x0 = (self.eye_R, self.eye_K)
         if bounds is None:
             bounds = ((6.2, 9.4), (3.8, 5.7))
         self.is_calibration = True
         res = minimize(self.optimize_gaze, x0=x0,
-                       args=(eye, recalc_rot, interval),
+                       args=(eye, recalc_rot, interval, refraction_type),
                        bounds=bounds, method='SLSQP',
                        tol=1e-3, options={'maxiter': 1000, 'disp': True})
         self.is_calibration = False
@@ -193,28 +194,36 @@ class GazeMapper(object):
     def phi_eye_pp(self, alpha, beta):
         return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
 
-    def calc_centers(self, pupil, light1, light2, glint1, glint2, node, R, K):
+    def implicit_refraction(self, pupil, node, curvature_center, R, K):
+        """Pupil center calculation with implicit refraction model (3.3.3)"""
+        # Note: R unused but function call should match explicit_refraction()
+
         # variable shorthands for notation simplicity (thesis conventions)
         v = pupil
-        l1 = light1
-        l2 = light2
-        u1 = glint1
-        u2 = glint2
         o = node
+        c = curvature_center
 
-        # bnorm vector
-        b = self.b_norm(l1, l2, u1, u2, o)
+        # kp (3.45)
+        ocov = np.dot(o - c, o - v)
+        kp = ((-ocov - np.sqrt(ocov**2 - la.norm(o - v)**2
+                               * (la.norm(o - c)**2 - K**2)))
+              / la.norm(o - v)**2)
 
-        # obtain c (center of corneal curvature) from kq (method 2)
-        params = (500, 500)
-        bounds = ((200, 1000), (200, 1000))
-        args = (l1, l2, u1, u2, b, o, R)
-        kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
-                      method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
-        # mean of both results (3.12)
-        c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, R)
-        c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, R)
-        c = (c1 + c2) / 2
+        # pupil center p (3.42)
+        p = o + kp * (o - v)
+
+        # sanity checks (3.43 & 3.44)
+        np.testing.assert_almost_equal(la.norm(p - c), K)
+        np.testing.assert_array_less(la.norm(p - o), la.norm(c - o))
+
+        return p
+
+    def explicit_refraction(self, pupil, node, curvature_center, R, K):
+        """Pupil center calculation with explicit refraction model (3.3.2)"""
+        # variable shorthands for notation simplicity (thesis conventions)
+        v = pupil
+        o = node
+        c = curvature_center
 
         # kr (3.29)
         ocov = np.dot(o - c, o - v)
@@ -256,16 +265,38 @@ class GazeMapper(object):
         # satisfy constraint (3.36)
         np.testing.assert_array_less(la.norm(p - o), la.norm(c - o))
 
-        return p, c
+        return p
+
+    def calc_curvature_center(self, light1, light2, glint1, glint2, node, R):
+        # variable shorthands for notation simplicity (thesis conventions)
+        l1 = light1
+        l2 = light2
+        u1 = glint1
+        u2 = glint2
+        o = node
+
+        # bnorm vector
+        b = self.b_norm(l1, l2, u1, u2, o)
+
+        # obtain c (center of corneal curvature) from kq (method 2)
+        params = (500, 500)
+        bounds = ((200, 1000), (200, 1000))
+        args = (l1, l2, u1, u2, b, o, R)
+        kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
+                      method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
+        # mean of both results (3.12)
+        c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, R)
+        c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, R)
+        return (c1 + c2) / 2
 
     def calc_gaze(self, R=None, K=None, eye='both',
-                  recalc_rot=True, interval=1):
+                  recalc_rot=True, interval=1,
+                  refraction_type='explicit'):
         if R is None:
             R = self.eye_R
         if K is None:
             K = self.eye_K
 
-        # eye_idx = None
         if eye == 'left':
             eye_idx = [0]
         elif eye == 'right':
@@ -273,21 +304,33 @@ class GazeMapper(object):
         elif eye == 'both':
             eye_idx = [0, 1]
 
+        if refraction_type == 'explicit':
+            refraction_model = self.explicit_refraction
+        elif refraction_type == 'implicit':
+            refraction_model = self.implicit_refraction
+        else:
+            print(f"Unrecognized refraction model: {refraction_type}")
+            sys.exit(1)
+
         p = [[], []]
         c = [[], []]
         for idx in tqdm(range(0,
                               self.data['target'].shape[1],
                               interval), ncols=80,
                         disable=self.is_calibration):
-            # calculate left eye
             for i in eye_idx:
-                pi, ci = self.calc_centers(
-                    self.data['pupil'][i, :, idx],
+                ci = self.calc_curvature_center(
                     self.data['light'][0, :],
                     self.data['light'][1, :],
                     self.data['reflex'][i, 0, :, idx],
                     self.data['reflex'][i, 1, :, idx],
                     self.nodal_point,
+                    R,
+                )
+                pi = refraction_model(
+                    self.data['pupil'][i, :, idx],
+                    self.nodal_point,
+                    ci,
                     R,
                     K,
                 )
@@ -305,7 +348,8 @@ class GazeMapper(object):
         w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
         v = (
             (self.data['target'][:, ::interval].T - c)
-            / la.norm(self.data['target'][:, ::interval].T - c, axis=1)[:, np.newaxis]
+            / la.norm(self.data['target'][:, ::interval].T - c,
+                      axis=1)[:, np.newaxis]
         )
 
         if recalc_rot or self.ov_rot is None:
@@ -334,10 +378,11 @@ class GazeMapper(object):
 
         return intersect, c, w, w_rot
 
-    def optimize_gaze(self, x0, eye, recalc_rot, interval):
+    def optimize_gaze(self, x0, eye, recalc_rot, interval, refraction_type):
         R, K = x0
         intersect, c, w, w_rot = self.calc_gaze(R, K, eye,
-                                                recalc_rot, interval)
+                                                recalc_rot, interval,
+                                                refraction_type)
         objective = np.mean(la.norm(
             self.data['target'][:, ::interval].T - intersect, axis=1)**2)
         self.iterations += 1

@@ -16,10 +16,36 @@ def main(options):
     data = pp.get_wcs_data()
 
     mapper = GazeMapper(options, data)
-    # mapper.show(*mapper.calc_gaze(eye='left', recalc_rot=False))
-    # mapper.show(*mapper.calc_gaze(eye='right', recalc_rot=False))
-    # mapper.show(*mapper.calc_gaze(eye='both', recalc_rot=False))
-    mapper.calibrate(eye='both', recalc_rot=False, interval=1)
+
+    refraction = 'explicit'
+
+    mapper.show(*mapper.calc_gaze(eye='both',
+                                  recalc_rot=False,
+                                  refraction_type=refraction))
+
+    # mapper.calibrate(eye='both', recalc_rot=False, interval=2,
+    #                  refraction_type=refraction)
+
+    # _, cl, wl, _ = mapper.calc_gaze(eye='left',
+    #                                 recalc_rot=True,
+    #                                 refraction_type=refraction)
+    # _, cr, wr, _ = mapper.calc_gaze(eye='right',
+    #                                 recalc_rot=True,
+    #                                 refraction_type=refraction)
+
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(*cl.T, c='g', marker='.', label='cl')
+    # ax.scatter(*cr.T, c='r', marker='.', label='cr')
+    # # ax.scatter(*wl.T, c='g', marker='x', label='wl')
+    # # ax.scatter(*wr.T, c='r', marker='x', label='wr')
+    # ax.set_xlabel('x (mm)')
+    # ax.set_ylabel('y (mm)')
+    # ax.set_zlabel('z (mm)')
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.show()
+    # plt.close()
 
 
 if __name__ == '__main__':
