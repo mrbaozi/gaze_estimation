@@ -18,20 +18,13 @@ def main(options):
     mapper = GazeMapper(options, data)
 
     refraction = 'explicit'
+    # refraction = 'implicit'
 
-    mapper.show(*mapper.calc_gaze(eye='both',
-                                  recalc_rot=False,
-                                  refraction_type=refraction))
+    mapper.calc_gaze(eye='left', refraction_type=refraction, show=True)
+    # mapper.calibrate(eye='left', interval=1, refraction_type=refraction)
 
-    # mapper.calibrate(eye='both', recalc_rot=False, interval=2,
-    #                  refraction_type=refraction)
-
-    # _, cl, wl, _ = mapper.calc_gaze(eye='left',
-    #                                 recalc_rot=True,
-    #                                 refraction_type=refraction)
-    # _, cr, wr, _ = mapper.calc_gaze(eye='right',
-    #                                 recalc_rot=True,
-    #                                 refraction_type=refraction)
+    # _, cl, wl, _ = mapper.calc_gaze(eye='left', refraction_type=refraction)
+    # _, cr, wr, _ = mapper.calc_gaze(eye='right', refraction_type=refraction)
 
     # fig = plt.figure()
     # ax = fig.add_subplot(111, projection='3d')
