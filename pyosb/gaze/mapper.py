@@ -23,10 +23,10 @@ class GazeMapper(object):
         self.data = data
 
         # eye parameters
-        self.eye_K = args.K
-        self.eye_R = args.R
-        self.eye_alpha = args.alpha
-        self.eye_beta = args.beta
+        self.eye_K = args.eye_K
+        self.eye_R = args.eye_R
+        self.eye_alpha = args.eye_alpha
+        self.eye_beta = args.eye_beta
         self.n1 = args.n1
         self.n2 = args.n2
 
