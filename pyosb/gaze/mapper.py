@@ -41,17 +41,13 @@ class GazeMapper(object):
                                    np.array([0, 0, 1]))
         self.screenPoint = self.data['target'][:, 0]
 
-        # rotation matrix between optical and visual axis
-        # load/save this from/to some file in the future
-        self.ov_rot = None
-
         # calibration or gaze calculation
         self.is_calibration = False
         self.last_objective = 0
         self.iterations = 0
 
     def calc_ov_rot(self, w, v):
-        # find rotation matrix between optic and target vectors
+        # find rotation matrix between optic axis and target vectors
         R = []
         for wi, vi in zip(w, v):
             n = np.cross(wi, vi)
@@ -64,18 +60,18 @@ class GazeMapper(object):
             R.append(Ri)
         return np.mean(np.array(R), axis=0)
 
-    def calibrate(self, eye='both', recalc_rot=False, interval=1,
+    def calibrate(self, eye='both', interval=1,
                   x0=None, bounds=None,
                   refraction_type='explicit'):
         if x0 is None:
-            x0 = (self.eye_R, self.eye_K)
+            x0 = (self.eye_R, self.eye_K, self.eye_alpha, self.eye_beta)
         if bounds is None:
-            bounds = ((6.2, 9.4), (3.8, 5.7))
+            bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
         self.is_calibration = True
         res = minimize(self.optimize_gaze, x0=x0,
-                       args=(eye, recalc_rot, interval, refraction_type),
+                       args=(eye, interval, refraction_type),
                        bounds=bounds, method='SLSQP',
-                       tol=1e-3, options={'maxiter': 1000, 'disp': True})
+                       tol=1e-3, options={'maxiter': 1000, 'disp': False})
         self.is_calibration = False
         self.iterations = 0
         self.last_objective = 0
@@ -191,6 +187,45 @@ class GazeMapper(object):
         cb = np.cos(np.deg2rad(beta))
         return -np.arctan((sa * cb) / (np.sqrt(ca**2 * cb**2 + sb**2)))
 
+    def rot_flip_eye(self):
+        """Appendix A.2"""
+        return np.array([
+            [-1, 0, 0],
+            [0, 1, 0],
+            [0, 0, -1]
+        ])
+
+    def rot_theta_eye(self, theta):
+        """Appendix A.3"""
+        return np.array([
+            [np.cos(theta), 0, -np.sin(theta)],
+            [0, 1, 0],
+            [np.sin(theta), 0, np.cos(theta)]
+        ])
+
+    def rot_phi_eye(self, phi):
+        """Appendix A.4"""
+        return np.array([
+            [1, 0, 0],
+            [0, np.cos(phi), np.sin(phi)],
+            [0, -np.sin(phi), np.cos(phi)]
+        ])
+
+    def rot_kappa_eye(self, kappa):
+        """Appendix A.5"""
+        return np.array([
+            [np.cos(kappa), -np.sin(kappa), 0],
+            [np.sin(kappa), np.cos(kappa), 0],
+            [0, 0, 1]
+        ])
+
+    def v_ecs(self, alpha, beta):
+        return np.array([
+            -np.sin(alpha) * np.cos(beta),
+            np.sin(beta),
+            np.cos(alpha) * np.cos(beta)
+        ])
+
     def phi_eye_pp(self, alpha, beta):
         return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
 
@@ -297,7 +332,15 @@ class GazeMapper(object):
         if K is None:
             K = self.eye_K
 
-        if eye == 'left':
+        if eye_alpha is None:
+            eye_alpha = self.eye_alpha
+        if eye_beta is None:
+            eye_beta = self.eye_beta
+
+        if eye == 'both':
+            eye_idx = [0, 1]
+            pass
+        elif eye == 'left':
             eye_idx = [0]
         elif eye == 'right':
             eye_idx = [1]
@@ -352,39 +395,6 @@ class GazeMapper(object):
                       axis=1)[:, np.newaxis]
         )
 
-        if recalc_rot or self.ov_rot is None:
-            self.ov_rot = self.calc_ov_rot(w, v)
-
-        w_rot = []
-        for wi in w:
-            w_rot.append(np.dot(self.ov_rot, wi))
-        w_rot = np.array(w_rot)
-
-        # TODO implement listing's law
-        # phi_pp = phi_eye_pp(alpha_eye, beta_eye)
-        # theta_pp = theta_eye_pp(alpha_eye, beta_eye)
-        # t_el = -np.arctan(v[:, 0] / v[:, 2])
-        # p_el = np.arcsin(v[:, 1])
-        # sys.exit(0)
-
-        # find intersection with screen
-        intersect = []
-        for ci, wi in zip(c, w_rot):
-            ndotu = np.dot(self.screenNormal, wi)
-            wk = (ci + wi) - self.screenPoint
-            si = np.dot(-self.screenNormal, wk) / ndotu
-            intersect.append(wk + si * wi + self.screenPoint)
-        intersect = np.array(intersect)
-
-        return intersect, c, w, w_rot
-
-    def optimize_gaze(self, x0, eye, recalc_rot, interval, refraction_type):
-        R, K = x0
-        intersect, c, w, w_rot = self.calc_gaze(R, K, eye,
-                                                recalc_rot, interval,
-                                                refraction_type)
-        objective = np.mean(la.norm(
-            self.data['target'][:, ::interval].T - intersect, axis=1)**2)
         self.iterations += 1
 
         print(f"Iteration {self.iterations}:")
