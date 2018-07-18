@@ -301,9 +301,84 @@ class GazeMapper(object):
         c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, R)
         return (c1 + c2) / 2
 
-    def calc_gaze(self, R=None, K=None, eye='both',
-                  recalc_rot=True, interval=1,
-                  refraction_type='explicit'):
+    def optical_axis(self, R, K, pupil, glint1, glint2,
+                     refraction_model, interval):
+        """Calculate optical axis of eye (Section 3.3)"""
+
+        v = pupil
+        u1 = glint1
+        u2 = glint2
+
+        p = []
+        c = []
+        for idx in tqdm(range(0, self.data['target'].shape[1], interval),
+                        ncols=80, disable=self.is_calibration):
+            ci = self.calc_curvature_center(
+                self.data['light'][0, :],
+                self.data['light'][1, :],
+                u1[:, idx],
+                u2[:, idx],
+                self.nodal_point, R)
+            pi = refraction_model(v[:, idx], self.nodal_point, ci, R, K)
+            p.append(pi)
+            c.append(ci)
+        p = np.array(p)
+        c = np.array(c)
+
+        # unit vector w in direction of optic axis (3.38)
+        w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
+
+        return w, p, c
+
+    def visual_axis(self, w, c, eye_alpha, eye_beta, interval):
+        """Reconstruct visual axis (Section 3.4)"""
+
+        # convert eye_alpha and eye_beta to radians
+        alpha = np.radians(eye_alpha)
+        beta = np.radians(eye_beta)
+
+        # determine eye pan and tilt angles from w (A.19 & A.20)
+        eye_theta = -np.arctan(w[:, 0] / w[:, 2])
+        eye_phi = np.arcsin(w[:, 1])
+
+        v = []
+
+        # for theta, phi, ci in zip(eye_theta, eye_phi, c):
+        #     # rotation matrix (A.2 - A.6)
+        #     R1 = self.rot_flip_eye()
+        #     R2 = self.rot_theta_eye(theta)
+        #     R3 = self.rot_phi_eye(phi)
+        #     R4 = self.rot_kappa_eye(0)
+        #     R = R1.dot(R2).dot(R3).dot(R4)
+        #     v.append(R.dot(self.v_ecs(alpha, beta)))
+        # v = np.array(v)
+
+        # alternative method to get v from paper
+        v = np.array([
+            np.cos(eye_phi + beta) * np.sin(eye_theta + alpha),
+            np.sin(eye_phi + beta),
+            -np.cos(eye_phi + beta) * np.cos(eye_theta + alpha)
+        ]).T
+
+        # kg for intersection with scene (3.61)
+        # basically, kg is the z value at which g intersects the screen
+        g = []
+        d = np.dot(self.screenNormal, self.screenPoint)
+        for ci, vi in zip(c, v):
+            kg = ((d - np.dot(self.screenNormal, ci))
+                  / np.dot(self.screenNormal, vi))
+
+            # gaze point g = c + kg * v (2.31)
+            g.append(ci + kg * vi)
+        g = np.array(g)
+
+        return g, v
+
+    def calc_gaze(self, R=None, K=None, eye_alpha=None, eye_beta=None,
+                  eye='both', interval=1, refraction_type='explicit',
+                  show=False):
+        """Gets gaze intersect with screen from optical and visual axis"""
+
         if R is None:
             R = self.eye_R
         if K is None:
@@ -321,8 +396,6 @@ class GazeMapper(object):
             eye_idx = [0]
         elif eye == 'right':
             eye_idx = [1]
-        elif eye == 'both':
-            eye_idx = [0, 1]
 
         if refraction_type == 'explicit':
             refraction_model = self.explicit_refraction
