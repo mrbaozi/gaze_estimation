@@ -77,29 +77,6 @@ class GazeMapper(object):
         self.last_objective = 0
         print(res)
 
-    def show(self, intersect0, c, w, w_rot):
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(*self.nodal_point.T, c='k', label='Nodal point')
-        ax.scatter(*self.data['light'][0].T, c='k', label='Source 1')
-        ax.scatter(*self.data['light'][1].T, c='k', label='Source 2')
-        ax.scatter(*intersect0.T, c='c', marker='.', linewidth=0.1)
-        # ax.scatter(*intersect1.T, c='m', marker='.', linewidth=0.1)
-        for i in range(0, len(c), 30):
-            ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
-                    c='b', linestyle='-')
-            ax.plot(*np.array((c[i], c[i] + 400 * w_rot[i])).T,
-                    c='g', linestyle='-')
-        for tgt in np.unique(self.data['target'].T, axis=0):
-            ax.scatter(*tgt.T, c='k', marker='x')
-        ax.auto_scale_xyz([-300, 300], [0, 300], [1000, 0])
-        ax.set_xlabel('x (mm)')
-        ax.set_ylabel('y (mm)')
-        ax.set_zlabel('z (mm)')
-        plt.tight_layout()
-        plt.show()
-        plt.close()
-
     def b_norm(self, l1, l2, u1, u2, o):
         """intersection of planes (3.8)"""
         b = np.cross(np.cross(l1 - o, u1 - o),
@@ -355,50 +332,64 @@ class GazeMapper(object):
             print(f"Unrecognized refraction model: {refraction_type}")
             sys.exit(1)
 
-        p = [[], []]
-        c = [[], []]
-        for idx in tqdm(range(0,
-                              self.data['target'].shape[1],
-                              interval), ncols=80,
-                        disable=self.is_calibration):
-            for i in eye_idx:
-                ci = self.calc_curvature_center(
-                    self.data['light'][0, :],
-                    self.data['light'][1, :],
-                    self.data['reflex'][i, 0, :, idx],
-                    self.data['reflex'][i, 1, :, idx],
-                    self.nodal_point,
-                    R,
-                )
-                pi = refraction_model(
-                    self.data['pupil'][i, :, idx],
-                    self.nodal_point,
-                    ci,
-                    R,
-                    K,
-                )
-                p[i].append(pi)
-                c[i].append(ci)
+        if show:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(*self.nodal_point.T, c='k', label='Nodal point')
+            ax.scatter(*self.data['light'][0].T, c='k', label='Source 1')
+            ax.scatter(*self.data['light'][1].T, c='k', label='Source 2')
 
-        if eye == 'both':
-            p = (np.array(p[0]) + np.array(p[1])) / 2
-            c = (np.array(c[0]) + np.array(c[1])) / 2
-        else:
-            p = np.array(p[eye_idx[0]])
-            c = np.array(c[eye_idx[0]])
+        # calculate gaze point for each eye
+        g = []
+        for i in eye_idx:
+            pupil = self.data['pupil'][i]
+            glint1 = self.data['reflex'][i, 0]
+            glint2 = self.data['reflex'][i, 1]
+            w, p, c = self.optical_axis(R, K, pupil, glint1, glint2,
+                                        refraction_model, interval)
+            gi, v = self.visual_axis(w, c, eye_alpha, eye_beta, interval)
+            g.append(gi)
 
-        # calculate optic axis and unit vector to targets from curvature center
-        w = (p - c) / la.norm(p - c, axis=1)[:, np.newaxis]
-        v = (
-            (self.data['target'][:, ::interval].T - c)
-            / la.norm(self.data['target'][:, ::interval].T - c,
-                      axis=1)[:, np.newaxis]
-        )
+            if show:
+                ax.scatter(*gi.T, c='c', marker='.', linewidth=0.1)
+                for i in range(0, len(c), 30):
+                    ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
+                            c='b', linestyle='-')
+                    ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
+                            c='g', linestyle='-')
+                for tgt in np.unique(self.data['target'].T, axis=0):
+                    ax.scatter(*tgt.T, c='k', marker='x')
+
+        g = np.array(g)
+
+        if show:
+            ax.auto_scale_xyz([-300, 300], [0, 300], [1000, 0])
+            ax.set_xlabel('x (mm)')
+            ax.set_ylabel('y (mm)')
+            ax.set_zlabel('z (mm)')
+            plt.tight_layout()
+            plt.show()
+            plt.close()
+
+        return np.mean(g, axis=0) if g.shape[0] == 2 else g[0]
+
+    def optimize_gaze(self, x0, eye, interval, refraction_type):
+        R, K, eye_alpha, eye_beta = x0
+        print(x0)
+        g = self.calc_gaze(R, K, eye_alpha, eye_beta,
+                           eye, interval, refraction_type,
+                           show=False)
+
+        objective = np.sum(la.norm(
+            self.data['target'][:, ::interval].T - g, axis=1)**2) / 1000000
+
+        # objective = np.sum(la.norm(
+        #     self.data['target'][:, ::interval].T - g, axis=1))
 
         self.iterations += 1
 
-        print(f"Iteration {self.iterations}:")
-        print(f"Objective function value: {objective} | "
+        print(f"Iteration {self.iterations}:\n"
+              f"Objective function value: {objective} | "
               f"delta = {objective - self.last_objective}\n")
 
         self.last_objective = objective
