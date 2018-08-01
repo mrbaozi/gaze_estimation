@@ -20,8 +20,8 @@ def main(options):
     refraction = 'explicit'
     # refraction = 'implicit'
 
-    mapper.calc_gaze(eye='left', refraction_type=refraction, show=True)
-    # mapper.calibrate(eye='left', interval=1, refraction_type=refraction)
+    # mapper.calc_gaze(eye='left', refraction_type=refraction, show=True)
+    mapper.calibrate()
 
     # _, cl, wl, _ = mapper.calc_gaze(eye='left', refraction_type=refraction)
     # _, cr, wr, _ = mapper.calc_gaze(eye='right', refraction_type=refraction)
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     p.add('--n2', type=float, help='Refractive index n2')
     p.add('--eye_R', type=float, help='Eye R')
     p.add('--eye_K', type=float, help='Eye K')
-    p.add('--eye_alpha', type=float, help='Eye alpha')
+    p.add('--eye_alpha', type=float, nargs=2, help='Eye alpha')
     p.add('--eye_beta', type=float, help='Eye beta')
     p.add('--cam_center', type=float, nargs=2,
           help='Camera center from calibration (in px)')

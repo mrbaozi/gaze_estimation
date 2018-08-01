@@ -60,9 +60,51 @@ class GazeMapper(object):
             R.append(Ri)
         return np.mean(np.array(R), axis=0)
 
-    def calibrate(self, eye='both', interval=1,
-                  x0=None, bounds=None,
-                  refraction_type='explicit'):
+    def calibrate(self, x0=None, bounds=None,
+                  refraction_type='explicit',
+                  interval=1):
+
+        targets = self.data['target'].T
+        last_target = targets[0]
+        unique_targets = [last_target, ]
+        left_eye_pupils = []
+        right_eye_pupils = []
+        left_eye_pupil_mean = []
+        right_eye_pupil_mean = []
+        for i, target in enumerate(targets):
+            if np.array_equal(target, last_target):
+                left_eye_pupils.append(self.data['pupil'][0].T[i])
+                right_eye_pupils.append(self.data['pupil'][1].T[i])
+            else:
+                left_eye_pupil_mean.append(np.mean(left_eye_pupils, axis=0))
+                left_eye_pupils.clear()
+                right_eye_pupil_mean.append(np.mean(right_eye_pupils, axis=0))
+                right_eye_pupils.clear()
+                unique_targets.append(np.array(target))
+                last_target = target
+        left_eye_pupil_mean.append(np.mean(left_eye_pupils, axis=0))
+        left_eye_pupils.clear()
+        right_eye_pupil_mean.append(np.mean(right_eye_pupils, axis=0))
+        right_eye_pupils.clear()
+        unique_targets = np.array(unique_targets).T
+        left_eye_pupil_mean = np.array(left_eye_pupil_mean).T
+        right_eye_pupil_mean = np.array(right_eye_pupil_mean).T
+        print(left_eye_pupil_mean)
+
+        left_eye_data = [
+            self.data['pupil'][0],
+            self.data['reflex'][0, 0],
+            self.data['reflex'][0, 1],
+        ]
+
+        right_eye_data = [
+            self.data['pupil'][1],
+            self.data['reflex'][1, 0],
+            self.data['reflex'][1, 1],
+        ]
+
+        sys.exit(0)
+
         if x0 is None:
             x0 = (self.eye_R, self.eye_K, self.eye_alpha, self.eye_beta)
         if bounds is None:
@@ -364,7 +406,19 @@ class GazeMapper(object):
 
         return g, v
 
-    def calc_gaze(self, R=None, K=None, eye_alpha=None, eye_beta=None,
+    def single_gaze(self,
+                    v, u1, u2,
+                    refraction_model,
+                    R=None, K=None,
+                    eye_alpha=None, eye_beta=None,
+                    interval=1):
+        w, p, c = self.optical_axis(R, K, v, u1, u2,
+                                    refraction_model, interval)
+        g, v = self.visual_axis(w, c, eye_alpha, eye_beta, interval)
+        return w, p, c, g, v
+
+    def calc_gaze(self, R=None, K=None,
+                  eye_alpha=None, eye_beta=None,
                   eye='both', interval=1, refraction_type='explicit',
                   show=False):
         """Gets gaze intersect with screen from optical and visual axis"""
@@ -374,11 +428,6 @@ class GazeMapper(object):
         if K is None:
             K = self.eye_K
 
-        if eye_alpha is None:
-            eye_alpha = self.eye_alpha
-        if eye_beta is None:
-            eye_beta = self.eye_beta
-
         if eye == 'both':
             eye_idx = [0, 1]
             pass
@@ -386,6 +435,11 @@ class GazeMapper(object):
             eye_idx = [0]
         elif eye == 'right':
             eye_idx = [1]
+
+        if eye_alpha is None:
+            eye_alpha = self.eye_alpha
+        if eye_beta is None:
+            eye_beta = self.eye_beta
 
         if refraction_type == 'explicit':
             refraction_model = self.explicit_refraction
@@ -405,12 +459,12 @@ class GazeMapper(object):
         # calculate gaze point for each eye
         g = []
         for i in eye_idx:
-            pupil = self.data['pupil'][i]
-            glint1 = self.data['reflex'][i, 0]
-            glint2 = self.data['reflex'][i, 1]
-            w, p, c = self.optical_axis(R, K, pupil, glint1, glint2,
-                                        refraction_model, interval)
-            gi, v = self.visual_axis(w, c, eye_alpha, eye_beta, interval)
+            v = self.data['pupil'][i]
+            u1 = self.data['reflex'][i, 0]
+            u2 = self.data['reflex'][i, 1]
+            w, p, c, gi, v = self.single_gaze(v, u1, u2, refraction_model,
+                                              R, K, eye_alpha[i], eye_beta,
+                                              interval)
             g.append(gi)
 
             if show:
