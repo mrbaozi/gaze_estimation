@@ -112,6 +112,7 @@ class Preprocessor(object):
 
         # and rotate lights and gaze targets to world coordinates
         self.light_l = self.rot.dot(self.light_l)
+
         self.light_r = self.rot.dot(self.light_r)
         targets = np.stack([self.dataFrame['gaze_target.x'],
                             self.dataFrame['gaze_target.y'],

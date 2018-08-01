@@ -343,16 +343,6 @@ class GazeMapper(object):
 
         v = []
 
-        # for theta, phi, ci in zip(eye_theta, eye_phi, c):
-        #     # rotation matrix (A.2 - A.6)
-        #     R1 = self.rot_flip_eye()
-        #     R2 = self.rot_theta_eye(theta)
-        #     R3 = self.rot_phi_eye(phi)
-        #     R4 = self.rot_kappa_eye(0)
-        #     R = R1.dot(R2).dot(R3).dot(R4)
-        #     v.append(R.dot(self.v_ecs(alpha, beta)))
-        # v = np.array(v)
-
         # alternative method to get v from paper
         v = np.array([
             np.cos(eye_phi + beta) * np.sin(eye_theta + alpha),
@@ -448,7 +438,6 @@ class GazeMapper(object):
 
     def optimize_gaze(self, x0, eye, interval, refraction_type):
         R, K, eye_alpha, eye_beta = x0
-        print(x0)
         g = self.calc_gaze(R, K, eye_alpha, eye_beta,
                            eye, interval, refraction_type,
                            show=False)
