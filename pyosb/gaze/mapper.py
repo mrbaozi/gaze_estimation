@@ -46,19 +46,6 @@ class GazeMapper(object):
         self.last_objective = 0
         self.iterations = 0
 
-    def calc_ov_rot(self, w, v):
-        # find rotation matrix between optic axis and target vectors
-        R = []
-        for wi, vi in zip(w, v):
-            n = np.cross(wi, vi)
-            sns = la.norm(n)
-            cns = np.dot(wi, vi)
-            nx = np.array([[0, -n[2], n[1]],
-                           [n[2], 0, -n[0]],
-                           [-n[1], n[0], 0]])
-            Ri = np.identity(3) + nx + nx**2 * (1 - cns) / sns**2
-            R.append(Ri)
-        return np.mean(np.array(R), axis=0)
 
     def calibrate(self, x0=None, bounds=None,
                   refraction_type='explicit',
@@ -146,73 +133,6 @@ class GazeMapper(object):
         c1 = self.curvaturecenter_c(kq[0], l1, u1, b, o, r)
         c2 = self.curvaturecenter_c(kq[1], l2, u2, b, o, r)
         return la.norm(c1 - c2)**2
-
-    def to_ccs(self, pt, center, pitch):
-        """ics to ccs (2.27)"""
-        xy = pitch * (pt - center)
-        return np.append(xy, 0)
-
-    def to_wcs(self, ijk_cam, xyz_u, t):
-        """ccs to wcs (2.21)"""
-        return np.dot(ijk_cam, xyz_u) + t
-
-    def k_cam(self, phi, theta):
-        """unit vector k_cam (2.22)"""
-        return np.array([np.cos(np.deg2rad(phi)) * np.sin(np.deg2rad(theta)),
-                         np.sin(np.deg2rad(phi)),
-                         -np.cos(np.deg2rad(phi)) * np.cos(np.deg2rad(theta))])
-
-    def i_cam_0(self, j, k):
-        """i_cam_0 (2.23)"""
-        return np.cross(j, k) / la.norm(np.cross(j, k))
-
-    def j_cam_0(self, k, ic0):
-        """j_cam_0 (2.24)"""
-        return np.cross(k, ic0)
-
-    def i_cam(self, ic0, jc0, kappa):
-        """i_cam (2.25)"""
-        return (np.cos(np.deg2rad(kappa)) * ic0
-                + np.sin(np.deg2rad(kappa)) * jc0)
-
-    def j_cam(self, ic0, jc0, kappa):
-        """j_cam (2.26)"""
-        return (-np.sin(np.deg2rad(kappa)) * ic0
-                + np.cos(np.deg2rad(kappa)) * jc0)
-
-    def r_listing(self, phi, theta):
-        sp = np.sin(np.deg2rad(phi))
-        cp = np.cos(np.deg2rad(phi))
-        st = np.sin(np.deg2rad(theta))
-        ct = np.cos(np.deg2rad(theta))
-        m00 = 1 - (st**2 * cp**2) / (1 + ct * cp)
-        m01 = (-sp * st * cp) / (1 + ct * cp)
-        m02 = -st * cp
-        m10 = (-sp * st * cp) / (1 + ct * cp)
-        m11 = (ct * cp + cp**2) / (1 + ct * cp)
-        m12 = -sp
-        m20 = st * cp
-        m21 = sp
-        m22 = ct * cp
-        return np.array([
-            [m00, m01, m02],
-            [m10, m11, m12],
-            [m20, m21, m22]])
-
-    def theta_eye_pp(self, alpha, beta):
-        sa = np.sin(np.deg2rad(alpha))
-        ca = np.cos(np.deg2rad(alpha))
-        sb = np.sin(np.deg2rad(beta))
-        cb = np.cos(np.deg2rad(beta))
-        return -np.arctan((sa * cb) / (np.sqrt(ca**2 * cb**2 + sb**2)))
-
-    def rot_flip_eye(self):
-        """Appendix A.2"""
-        return np.array([
-            [-1, 0, 0],
-            [0, 1, 0],
-            [0, 0, -1]
-        ])
 
     def rot_theta_eye(self, theta):
         """Appendix A.3"""
@@ -430,7 +350,6 @@ class GazeMapper(object):
 
         if eye == 'both':
             eye_idx = [0, 1]
-            pass
         elif eye == 'left':
             eye_idx = [0]
         elif eye == 'right':
