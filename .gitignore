@@ -62,3 +62,6 @@ ENV/
 
 # mkdocs documentation
 /site
+
+# IntelliJ stuff
+.idea
