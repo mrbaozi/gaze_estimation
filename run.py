@@ -17,11 +17,8 @@ def main(options):
 
     mapper = GazeMapper(options, data)
 
-    refraction = 'explicit'
-    # refraction = 'implicit'
-
-    # mapper.calc_gaze(eye='left', refraction_type=refraction, show=True)
-    mapper.calibrate()
+    mapper.calc_gaze(eye='left', refraction_type='explicit', show=True)
+    # mapper.calibrate()
 
     # _, cl, wl, _ = mapper.calc_gaze(eye='left', refraction_type=refraction)
     # _, cr, wr, _ = mapper.calc_gaze(eye='right', refraction_type=refraction)

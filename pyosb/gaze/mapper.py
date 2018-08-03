@@ -46,61 +46,56 @@ class GazeMapper(object):
         self.last_objective = 0
         self.iterations = 0
 
-
-    def calibrate(self, x0=None, bounds=None,
-                  refraction_type='explicit',
-                  interval=1):
-
+    def calibrate(self, x0=None, bounds=None):
         targets = self.data['target'].T
         last_target = targets[0]
         unique_targets = [last_target, ]
-        left_eye_pupils = []
-        right_eye_pupils = []
-        left_eye_pupil_mean = []
-        right_eye_pupil_mean = []
+        pupils = []
+        reflex_left = []
+        reflex_right = []
+        pupil_mean = []
+        reflex_left_mean = []
+        reflex_right_mean = []
         for i, target in enumerate(targets):
             if np.array_equal(target, last_target):
-                left_eye_pupils.append(self.data['pupil'][0].T[i])
-                right_eye_pupils.append(self.data['pupil'][1].T[i])
+                pupils.append(self.data['pupil'][0].T[i])
+                reflex_left.append(self.data['reflex'][0, 0].T[i])
+                reflex_right.append(self.data['reflex'][0, 1].T[i])
             else:
-                left_eye_pupil_mean.append(np.mean(left_eye_pupils, axis=0))
-                left_eye_pupils.clear()
-                right_eye_pupil_mean.append(np.mean(right_eye_pupils, axis=0))
-                right_eye_pupils.clear()
+                pupil_mean.append(np.mean(pupils, axis=0))
+                reflex_left_mean.append(np.mean(reflex_left, axis=0))
+                reflex_right_mean.append(np.mean(reflex_right, axis=0))
+                pupils.clear()
+                reflex_left.clear()
+                reflex_right.clear()
                 unique_targets.append(np.array(target))
                 last_target = target
-        left_eye_pupil_mean.append(np.mean(left_eye_pupils, axis=0))
-        left_eye_pupils.clear()
-        right_eye_pupil_mean.append(np.mean(right_eye_pupils, axis=0))
-        right_eye_pupils.clear()
+        pupil_mean.append(np.mean(pupils, axis=0))
+        reflex_left_mean.append(np.mean(reflex_left, axis=0))
+        reflex_right_mean.append(np.mean(reflex_right, axis=0))
+        pupils.clear()
+        reflex_left.clear()
+        reflex_right.clear()
         unique_targets = np.array(unique_targets).T
-        left_eye_pupil_mean = np.array(left_eye_pupil_mean).T
-        right_eye_pupil_mean = np.array(right_eye_pupil_mean).T
-        print(left_eye_pupil_mean)
+        pupil_mean = np.array(pupil_mean).T
+        reflex_left_mean = np.array(reflex_left_mean).T
+        reflex_right_mean = np.array(reflex_right_mean).T
 
-        left_eye_data = [
-            self.data['pupil'][0],
-            self.data['reflex'][0, 0],
-            self.data['reflex'][0, 1],
-        ]
-
-        right_eye_data = [
-            self.data['pupil'][1],
-            self.data['reflex'][1, 0],
-            self.data['reflex'][1, 1],
-        ]
-
-        sys.exit(0)
+        t = unique_targets
+        v = pupil_mean
+        u1 = reflex_left_mean
+        u2 = reflex_right_mean
 
         if x0 is None:
-            x0 = (self.eye_R, self.eye_K, self.eye_alpha, self.eye_beta)
+            x0 = (self.eye_R, self.eye_K, self.eye_alpha[0], self.eye_beta)
         if bounds is None:
-            bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
+            # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
+            bounds = ((1, 20), (1, 20), (-10, 10), (-10, 10))
         self.is_calibration = True
         res = minimize(self.optimize_gaze, x0=x0,
-                       args=(eye, interval, refraction_type),
-                       bounds=bounds, method='SLSQP',
-                       tol=1e-3, options={'maxiter': 1000, 'disp': False})
+                       args=(t, v, u1, u2, self.explicit_refraction),
+                       bounds=bounds, method='L-BFGS-B',
+                       tol=1e-8, options={'maxiter': 1000, 'disp': False})
         self.is_calibration = False
         self.iterations = 0
         self.last_objective = 0
@@ -258,7 +253,7 @@ class GazeMapper(object):
         b = self.b_norm(l1, l2, u1, u2, o)
 
         # obtain c (center of corneal curvature) from kq (method 2)
-        params = (500, 500)
+        params = np.array((500, 500))
         bounds = ((200, 1000), (200, 1000))
         args = (l1, l2, u1, u2, b, o, R)
         kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
@@ -278,7 +273,7 @@ class GazeMapper(object):
 
         p = []
         c = []
-        for idx in tqdm(range(0, self.data['target'].shape[1], interval),
+        for idx in tqdm(range(0, pupil.shape[1], interval),
                         ncols=80, disable=self.is_calibration):
             ci = self.calc_curvature_center(
                 self.data['light'][0, :],
@@ -359,6 +354,9 @@ class GazeMapper(object):
             eye_idx = [0]
         elif eye == 'right':
             eye_idx = [1]
+        else:
+            print(f"Unrecognized eye index: {eye}")
+            sys.exit(1)
 
         if eye_alpha is None:
             eye_alpha = self.eye_alpha
@@ -414,17 +412,11 @@ class GazeMapper(object):
 
         return np.mean(g, axis=0) if g.shape[0] == 2 else g[0]
 
-    def optimize_gaze(self, x0, eye, interval, refraction_type):
+    def optimize_gaze(self, x0, t, v, u1, u2, refraction_model):
         R, K, eye_alpha, eye_beta = x0
-        g = self.calc_gaze(R, K, eye_alpha, eye_beta,
-                           eye, interval, refraction_type,
-                           show=False)
+        w, p, c, g, v = self.single_gaze(v, u1, u2, refraction_model, R, K, eye_alpha, eye_beta)
 
-        objective = np.sum(la.norm(
-            self.data['target'][:, ::interval].T - g, axis=1)**2) / 1000000
-
-        # objective = np.sum(la.norm(
-        #     self.data['target'][:, ::interval].T - g, axis=1))
+        objective = np.sum(la.norm(t.T - g, axis=1)**2) / 10000
 
         self.iterations += 1
 
