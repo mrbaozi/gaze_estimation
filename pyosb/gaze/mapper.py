@@ -134,7 +134,8 @@ class GazeMapper(object):
         c2 = self.curvaturecenter_c(kq[1], l2, u2, b, o, r)
         return la.norm(c1 - c2)**2
 
-    def rot_theta_eye(self, theta):
+    @staticmethod
+    def rot_theta_eye(theta):
         """Appendix A.3"""
         return np.array([
             [np.cos(theta), 0, -np.sin(theta)],
@@ -142,7 +143,8 @@ class GazeMapper(object):
             [np.sin(theta), 0, np.cos(theta)]
         ])
 
-    def rot_phi_eye(self, phi):
+    @staticmethod
+    def rot_phi_eye(phi):
         """Appendix A.4"""
         return np.array([
             [1, 0, 0],
@@ -150,7 +152,8 @@ class GazeMapper(object):
             [0, -np.sin(phi), np.cos(phi)]
         ])
 
-    def rot_kappa_eye(self, kappa):
+    @staticmethod
+    def rot_kappa_eye(kappa):
         """Appendix A.5"""
         return np.array([
             [np.cos(kappa), -np.sin(kappa), 0],
@@ -158,14 +161,16 @@ class GazeMapper(object):
             [0, 0, 1]
         ])
 
-    def v_ecs(self, alpha, beta):
+    @staticmethod
+    def v_ecs(alpha, beta):
         return np.array([
             -np.sin(alpha) * np.cos(beta),
             np.sin(beta),
             np.cos(alpha) * np.cos(beta)
         ])
 
-    def phi_eye_pp(self, alpha, beta):
+    @staticmethod
+    def phi_eye_pp(alpha, beta):
         return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
 
     def implicit_refraction(self, pupil, node, curvature_center, R, K):
