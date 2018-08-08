@@ -424,7 +424,7 @@ class GazeMapper(object):
 
         self.iterations += 1
 
-        print(f"Iteration {self.iterations:3d} - "
+        print(f"Iteration {self.iterations:3d}  -  "
               f"Objective: {objective:12.8f}  |  "
               f"delta = {objective - self.last_objective:12.8f}")
 
