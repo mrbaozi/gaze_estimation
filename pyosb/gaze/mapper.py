@@ -81,19 +81,16 @@ class GazeMapper(object):
         reflex_left_mean = np.array(reflex_left_mean).T
         reflex_right_mean = np.array(reflex_right_mean).T
 
-        t = unique_targets
-        v = pupil_mean
-        u1 = reflex_left_mean
-        u2 = reflex_right_mean
-
         if x0 is None:
             x0 = (self.eye_R, self.eye_K, self.eye_alpha[0], self.eye_beta)
         if bounds is None:
             # bounds = ((6.2, 9.4), (3.8, 5.7), (4, 6), (1, 2))
-            bounds = ((1, 20), (1, 20), (-10, 10), (-10, 10))
+            bounds = ((5, 10), (2, 7), (-6, 6), (-3, 3))
         self.is_calibration = True
         res = minimize(self.optimize_gaze, x0=x0,
-                       args=(t, v, u1, u2, self.explicit_refraction),
+                       args=(unique_targets, pupil_mean,
+                             reflex_left_mean, reflex_right_mean,
+                             self.explicit_refraction),
                        bounds=bounds, method='L-BFGS-B',
                        tol=1e-8, options={'maxiter': 1000, 'disp': False})
         self.is_calibration = False
@@ -101,7 +98,42 @@ class GazeMapper(object):
         self.last_objective = 0
         print(res)
 
-    def b_norm(self, l1, l2, u1, u2, o):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(*self.nodal_point.T, c='k', label='Nodal point')
+        ax.scatter(*self.data['light'][0].T, c='k', label='Source 1')
+        ax.scatter(*self.data['light'][1].T, c='k', label='Source 2')
+
+        # calculate gaze point for each eye
+        w, p, c, v, g1 = self.single_gaze(pupil_mean,
+                                          reflex_left_mean, reflex_right_mean,
+                                          self.explicit_refraction,
+                                          *res.x)
+        _, _, _, _, g2 = self.single_gaze(pupil_mean,
+                                          reflex_left_mean, reflex_right_mean,
+                                          self.explicit_refraction,
+                                          self.eye_R, self.eye_K,
+                                          self.eye_alpha[0], self.eye_beta)
+        ax.scatter(*g1.T, c='c', marker='.', linewidth=2.0)
+        ax.scatter(*g2.T, c='r', marker='x', linewidth=2.0)
+        for i in range(0, len(c)):
+            ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
+                    c='b', linestyle='-')
+            ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
+                    c='g', linestyle='-')
+            for tgt in np.unique(self.data['target'].T, axis=0):
+                ax.scatter(*tgt.T, c='k', marker='x')
+
+        ax.auto_scale_xyz([-300, 300], [0, 300], [1000, 0])
+        ax.set_xlabel('x (mm)')
+        ax.set_ylabel('y (mm)')
+        ax.set_zlabel('z (mm)')
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+    @staticmethod
+    def b_norm(l1, l2, u1, u2, o):
         """intersection of planes (3.8)"""
         b = np.cross(np.cross(l1 - o, u1 - o),
                      np.cross(l2 - o, u2 - o))
@@ -246,7 +278,8 @@ class GazeMapper(object):
                 u1[:, idx],
                 u2[:, idx],
                 self.nodal_point, R)
-            pi = refraction_model(v[:, idx], self.nodal_point, ci, R, K)
+            pi = refraction_model(v[:, idx], self.nodal_point, ci, R, K,
+                                  self.n1, self.n2)
             p.append(pi)
             c.append(ci)
         p = np.array(p)
@@ -299,13 +332,13 @@ class GazeMapper(object):
     def single_gaze(self,
                     v, u1, u2,
                     refraction_model,
-                    R=None, K=None,
-                    eye_alpha=None, eye_beta=None,
+                    R, K, eye_alpha, eye_beta,
                     interval=1):
         w, p, c = self.optical_axis(R, K, v, u1, u2,
                                     refraction_model, interval)
-        g, v = self.visual_axis(w, c, eye_alpha, eye_beta, interval)
-        return w, p, c, g, v
+        v = self.visual_axis(w, eye_alpha, eye_beta, interval)
+        g = self.scene_intersect(self.screenNormal, self.screenPoint, c, v)
+        return w, p, c, v, g
 
     def calc_gaze(self, R=None, K=None,
                   eye_alpha=None, eye_beta=None,
@@ -354,7 +387,7 @@ class GazeMapper(object):
             v = self.data['pupil'][i]
             u1 = self.data['reflex'][i, 0]
             u2 = self.data['reflex'][i, 1]
-            w, p, c, gi, v = self.single_gaze(v, u1, u2, refraction_model,
+            w, p, c, v, gi = self.single_gaze(v, u1, u2, refraction_model,
                                               R, K, eye_alpha[i], eye_beta,
                                               interval)
             g.append(gi)
@@ -384,9 +417,10 @@ class GazeMapper(object):
 
     def optimize_gaze(self, x0, t, v, u1, u2, refraction_model):
         R, K, eye_alpha, eye_beta = x0
-        w, p, c, g, v = self.single_gaze(v, u1, u2, refraction_model, R, K, eye_alpha, eye_beta)
+        w, p, c, v, g = self.single_gaze(v, u1, u2, refraction_model,
+                                         R, K, eye_alpha, eye_beta)
 
-        objective = np.sum(la.norm(t.T - g, axis=1)**2) / 10000
+        objective = la.norm(np.mean(np.absolute(t.T - g), axis=0))
 
         self.iterations += 1
 
