@@ -130,45 +130,7 @@ class GazeMapper(object):
         return la.norm(c1 - c2)**2
 
     @staticmethod
-    def rot_theta_eye(theta):
-        """Appendix A.3"""
-        return np.array([
-            [np.cos(theta), 0, -np.sin(theta)],
-            [0, 1, 0],
-            [np.sin(theta), 0, np.cos(theta)]
-        ])
-
-    @staticmethod
-    def rot_phi_eye(phi):
-        """Appendix A.4"""
-        return np.array([
-            [1, 0, 0],
-            [0, np.cos(phi), np.sin(phi)],
-            [0, -np.sin(phi), np.cos(phi)]
-        ])
-
-    @staticmethod
-    def rot_kappa_eye(kappa):
-        """Appendix A.5"""
-        return np.array([
-            [np.cos(kappa), -np.sin(kappa), 0],
-            [np.sin(kappa), np.cos(kappa), 0],
-            [0, 0, 1]
-        ])
-
-    @staticmethod
-    def v_ecs(alpha, beta):
-        return np.array([
-            -np.sin(alpha) * np.cos(beta),
-            np.sin(beta),
-            np.cos(alpha) * np.cos(beta)
-        ])
-
-    @staticmethod
-    def phi_eye_pp(alpha, beta):
-        return -np.arctan(np.tan(np.deg2rad(beta)) / np.cos(np.deg2rad(alpha)))
-
-    def implicit_refraction(self, pupil, node, curvature_center, R, K):
+    def implicit_refraction(pupil, node, curvature_center, R, K, n1, n2):
         """Pupil center calculation with implicit refraction model (3.3.3)"""
         # Note: R unused but function call should match explicit_refraction()
 
