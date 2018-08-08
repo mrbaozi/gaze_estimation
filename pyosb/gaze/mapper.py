@@ -107,14 +107,16 @@ class GazeMapper(object):
                      np.cross(l2 - o, u2 - o))
         return b / la.norm(b)
 
-    def curvaturecenter_c(self, kq, l, u, b, o, r):
+    @staticmethod
+    def curvaturecenter_c(kq, l, u, b, o, r):
         ou_n = (o - u) / la.norm(o - u)
         q = o + kq * ou_n
         oq_n = (o - q) / la.norm(o - q)
         lq_n = (l - q) / la.norm(l - q)
         return(q - r * ((lq_n + oq_n) / la.norm(lq_n + oq_n)))
 
-    def solve_kc_phd1(self, kc, l, u, b, o, r):
+    @staticmethod
+    def solve_kc_phd1(kc, l, u, b, o, r):
         ou_n = (o - u) / la.norm(o - u)
         kq = (kc * np.dot(ou_n, b)
               - np.sqrt(kc**2 * np.dot(ou_n, b)**2 - kc**2 + r**2))
@@ -154,7 +156,8 @@ class GazeMapper(object):
 
         return p
 
-    def explicit_refraction(self, pupil, node, curvature_center, R, K):
+    @staticmethod
+    def explicit_refraction(pupil, node, curvature_center, R, K, n1, n2):
         """Pupil center calculation with explicit refraction model (3.3.2)"""
         # variable shorthands for notation simplicity (thesis conventions)
         v = pupil
@@ -183,8 +186,8 @@ class GazeMapper(object):
         eta = (eta0 + eta1) / 2
 
         # iota from (3.33)
-        iota = self.n2 / self.n1 * (
-            (np.dot(nu, eta) - np.sqrt((self.n1/self.n2)**2
+        iota = n2 / n1 * (
+            (np.dot(nu, eta) - np.sqrt((n1 / n2)**2
                                        - 1 + np.dot(nu, eta)**2)) * nu - eta
         )
 
@@ -254,7 +257,8 @@ class GazeMapper(object):
 
         return w, p, c
 
-    def visual_axis(self, w, c, eye_alpha, eye_beta, interval):
+    @staticmethod
+    def visual_axis(w, eye_alpha, eye_beta, interval):
         """Reconstruct visual axis (Section 3.4)"""
 
         # convert eye_alpha and eye_beta to radians
@@ -274,19 +278,23 @@ class GazeMapper(object):
             -np.cos(eye_phi + beta) * np.cos(eye_theta + alpha)
         ]).T
 
+        return v
+
+    @staticmethod
+    def scene_intersect(n, p, c, v):
         # kg for intersection with scene (3.61)
         # basically, kg is the z value at which g intersects the screen
         g = []
-        d = np.dot(self.screenNormal, self.screenPoint)
+        d = np.dot(n, p)
         for ci, vi in zip(c, v):
-            kg = ((d - np.dot(self.screenNormal, ci))
-                  / np.dot(self.screenNormal, vi))
+            kg = ((d - np.dot(n, ci))
+                  / np.dot(n, vi))
 
             # gaze point g = c + kg * v (2.31)
             g.append(ci + kg * vi)
         g = np.array(g)
 
-        return g, v
+        return g
 
     def single_gaze(self,
                     v, u1, u2,
