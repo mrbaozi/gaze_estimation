@@ -92,7 +92,7 @@ class GazeMapper(object):
                              reflex_left_mean, reflex_right_mean,
                              self.explicit_refraction),
                        bounds=bounds, method='L-BFGS-B',
-                       tol=1e-8, options={'maxiter': 1000, 'disp': False})
+                       tol=1e-6, options={'maxiter': 2000, 'disp': False})
         self.is_calibration = False
         self.iterations = 0
         self.last_objective = 0
