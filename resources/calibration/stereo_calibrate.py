@@ -58,7 +58,6 @@ def stereo_calibrate(args, square_size=25):
             images.append(img)
 
     objpoints = np.array(objpoints)
-    imgpoints = np.array(imgpoints)
 
     if args.show:
         fig, ax = plt.subplots(1, 2)
@@ -72,10 +71,7 @@ def stereo_calibrate(args, square_size=25):
         cam2_matrix, cam2_dist,
         gray.shape[::-1], flags=cv2.CALIB_FIX_INTRINSIC, criteria=term_crit)
 
-    print('Rotation matrix:\n{}'.format(R))
-    print('Translation matrix:\n{}'.format(T))
-    print('Essential matrix:\n{}'.format(E))
-    print('Fundamental matrix:\n{}'.format(F))
+    return R, T, E, F
 
 
 if __name__ == '__main__':
@@ -87,4 +83,29 @@ if __name__ == '__main__':
     parser.add_argument('--show', '-s', action='store_true',
                         help='Show calibration results')
     args = parser.parse_args()
-    stereo_calibrate(args)
+    R, T, E, F = stereo_calibrate(args)
+
+    print('Rotation matrix:\n{}'.format(R))
+    print('Translation matrix:\n{}'.format(T))
+    print('Essential matrix:\n{}'.format(E))
+    print('Fundamental matrix:\n{}'.format(F))
+
+    img = cv2.imread(args.cam2[0])
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray[:, :1000] = 0
+    term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    objp = np.zeros((1, 6*9, 3), np.float32)
+    objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * 38
+    _, corners = cv2.findChessboardCorners(gray, (9, 6), None)
+
+    _, rvec, tvec = cv2.solvePnP(objp, corners, cam2_matrix, cam2_dist)
+
+    # fig, ax = plt.subplots(1, 2)
+    # ax[0].imshow(img)
+    # ax[1].imshow(gray, cmap='gray')
+    # plt.show()
+
+    rmat, _ = cv2.Rodrigues(rvec)
+
+    print('Rotation matrix:\n{}'.format(rmat))
+    print('Translation matrix:\n{}'.format(tvec))
