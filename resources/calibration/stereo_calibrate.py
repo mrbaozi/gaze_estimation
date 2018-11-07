@@ -109,3 +109,7 @@ if __name__ == '__main__':
 
     print('Rotation matrix:\n{}'.format(rmat))
     print('Translation matrix:\n{}'.format(tvec))
+
+    print(tvec - T)
+    print(T - tvec)
+    # print(objp * rmat + tvec)
