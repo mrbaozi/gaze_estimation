@@ -5,6 +5,7 @@ import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 cam1_matrix = np.array([
@@ -74,6 +75,21 @@ def stereo_calibrate(args, square_size=25):
     return R, T, E, F
 
 
+def construct_homogeneous_transform(R, T, a=1):
+    return np.vstack([np.hstack([R, T]), [0, 0, 0, a]])
+
+
+def point_to_homogeneous(p):
+    if len(p) == 2:
+        return np.hstack([p, [0, 1]])
+    if len(p) == 3:
+        return np.hstack([p, 1])
+
+
+def point_from_homogeneous(p):
+    return p[0:-1]
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cam1', type=str, nargs=1, required=True,
@@ -105,11 +121,32 @@ if __name__ == '__main__':
     # ax[1].imshow(gray, cmap='gray')
     # plt.show()
 
-    rmat, _ = cv2.Rodrigues(rvec)
+    rmat = cv2.Rodrigues(rvec)[0]
 
     print('Rotation matrix:\n{}'.format(rmat))
     print('Translation matrix:\n{}'.format(tvec))
 
-    print(tvec - T)
-    print(T - tvec)
-    # print(objp * rmat + tvec)
+    # cameraPosition = -np.matrix(rmat).T * np.matrix(tvec)
+
+    T1 = construct_homogeneous_transform(R, T)
+    T2 = construct_homogeneous_transform(rmat, tvec)
+
+    T1T2 = np.linalg.inv(T1).dot(T2)
+    C1_h = np.array([0, 0, 0, 1])
+    C2_h = np.linalg.inv(T1).dot(C1_h)
+    C1 = point_from_homogeneous(C1_h)
+    C2 = point_from_homogeneous(C2_h)
+    objp_3d = []
+    for op in objp[0]:
+        obj_pos = T1T2.dot(point_to_homogeneous(op))
+        objp_3d.append(point_from_homogeneous(obj_pos))
+    objp_3d = np.array(objp_3d)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(*objp_3d.T)
+    ax.scatter(*C1)
+    ax.scatter(*C2)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    plt.show()
