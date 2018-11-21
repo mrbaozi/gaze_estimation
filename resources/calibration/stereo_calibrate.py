@@ -132,18 +132,24 @@ if __name__ == '__main__':
     T2 = construct_homogeneous_transform(rmat, tvec)
 
     T1T2 = np.linalg.inv(T1).dot(T2)
+    T2T1 = T1.dot(np.linalg.inv(T2))
     C1_h = np.array([0, 0, 0, 1])
     C2_h = np.linalg.inv(T1).dot(C1_h)
     C1 = point_from_homogeneous(C1_h)
     C2 = point_from_homogeneous(C2_h)
     objp_3d = []
+    objp_3d_r = []
     for op in objp[0]:
         obj_pos = T1T2.dot(point_to_homogeneous(op))
+        obj_pos_r = T2T1.dot(point_to_homogeneous(op))
         objp_3d.append(point_from_homogeneous(obj_pos))
+        objp_3d_r.append(point_from_homogeneous(obj_pos_r))
     objp_3d = np.array(objp_3d)
+    objp_3d_r = np.array(objp_3d_r)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(*objp_3d.T)
+    ax.scatter(*objp_3d_r.T)
     ax.scatter(*C1)
     ax.scatter(*C2)
     ax.set_xlabel('x')
