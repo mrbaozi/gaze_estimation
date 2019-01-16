@@ -26,7 +26,7 @@ cam2_dist = np.array([-1.34503278e-01,
                       4.13394379e-03])
 
 
-def stereo_calibrate(args, square_size=25):
+def stereo_calibrate(args, square_size=24.5):
     term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     objp = np.zeros((1, 6*9, 3), np.float32)
     objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * square_size
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     gray[:, :1000] = 0
     term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     objp = np.zeros((1, 6*9, 3), np.float32)
-    objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * 38
+    objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * 36.5
     _, corners = cv2.findChessboardCorners(gray, (9, 6), None)
 
     _, rvec, tvec = cv2.solvePnP(objp, corners, cam2_matrix, cam2_dist)
@@ -149,7 +149,7 @@ if __name__ == '__main__':
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(*objp_3d.T)
-    ax.scatter(*objp_3d_r.T)
+    # ax.scatter(*objp_3d_r.T)
     ax.scatter(*C1)
     ax.scatter(*C2)
     ax.set_xlabel('x')
