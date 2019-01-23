@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def rotate_axis(theta, axis):
@@ -25,14 +27,16 @@ class Preprocessor(object):
         self.cam_pp = args.cam_pp
         self.screen_res = np.array(args.screen_res)
         self.screen_pp = args.screen_pp
-        self.screen_off = np.array(args.screen_off)
+        self.screen_center = np.array(args.screen_center)
+        self.screen_norm = np.array(args.screen_norm)
         self.light_l = np.array(args.light_l)
         self.light_r = np.array(args.light_r)
         self.preprocessed = False
-        self.rot_x = rotate_axis(args.cam_phi, [1, 0, 0])
-        self.rot_y = rotate_axis(args.cam_theta, [0, 1, 0])
-        self.rot_z = rotate_axis(args.cam_kappa, [0, 0, 1])
-        self.rot = self.rot_x.dot(self.rot_y).dot(self.rot_z)
+
+        rot_ax = np.cross(np.array([0, 0, 1]), self.screen_norm)
+        rot_ax /= np.linalg.norm(rot_ax)
+        alpha = np.arccos(np.array([0, 0, 1]) @ self.screen_norm)
+        self.rot = rotate_axis(np.degrees(alpha), rot_ax)
 
     def show(self):
         if not self.preprocessed:
@@ -101,25 +105,38 @@ class Preprocessor(object):
                 # convert cam pixels to mm
                 self.dataFrame[key] *= self.cam_pp
 
-        # calculate offsets w.r.t. camera center
-        self.light_l += (self.screen_off
-                         + np.array([0, self.screen_res[1]
-                                     * self.screen_pp, 0]))
-        self.light_r += (self.screen_off
-                         + np.array([0, self.screen_res[1]
-                                     * self.screen_pp, 0]))
-        self.dataFrame['gaze_target.y'] += self.screen_off[1]
+        # calculate offsets w.r.t. screen center
+        self.light_l += np.array(
+            [0, self.screen_res[1] * self.screen_pp / 2, 0])
+        self.light_r += np.array(
+            [0, self.screen_res[1] * self.screen_pp / 2, 0])
+
+        # rotate everything in screen coordinates to world coordinates
+        self.light_l = self.rot @ self.light_l + self.screen_center
+        self.light_r = self.rot @ self.light_r + self.screen_center
+
+        # self.dataFrame['gaze_target.y'] += self.screen_center[1]
 
         # and rotate lights and gaze targets to world coordinates
-        self.light_l = self.rot.dot(self.light_l)
-
-        self.light_r = self.rot.dot(self.light_r)
         targets = np.stack([self.dataFrame['gaze_target.x'],
                             self.dataFrame['gaze_target.y'],
-                            np.full(self.dataFrame.shape[0],
-                                    self.screen_off[2])],
+                            np.zeros(self.dataFrame.shape[0])],
                            axis=1)
-        xr, yr, zr = np.dot(targets, self.rot.T).T
+        # TODO
+        # print(np.dot(targets, self.rot.T).T)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection='3d')
+        # xr, yr, zr = targets.T
+        # ax.scatter(xr, yr, zr)
+        xr, yr, zr = (np.dot(targets, self.rot.T) + self.screen_center).T
+        # ax.scatter(xr, yr, zr)
+        # xr, yr, zr = np.dot(targets, self.rot.T).T
+        # ax.scatter(xr, yr, zr)
+        # ax.scatter(0, 0, 0)
+        # ax.scatter(*self.light_l)
+        # ax.scatter(*self.light_r)
+        # plt.show()
+        # sys.exit()
         self.dataFrame['gaze_target.x'] = xr
         self.dataFrame['gaze_target.y'] = yr
         self.dataFrame['gaze_target.z'] = zr
@@ -194,6 +211,8 @@ class Preprocessor(object):
              self.dataFrame['gaze_target.y'],
              self.dataFrame['gaze_target.z']])
         data['screen_rotation'] = self.rot
+        data['screen_normal'] = self.screen_norm
+        data['screen_center'] = self.screen_center
         return data
 
     def rescale_to_screen(self, key, screen_x=None, screen_y=None):

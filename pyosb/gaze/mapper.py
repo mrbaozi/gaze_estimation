@@ -37,9 +37,8 @@ class GazeMapper(object):
         self.nodal_point = np.array([0, 0, self.focal_length])
 
         # screen plane definition
-        self.screenNormal = np.dot(self.data['screen_rotation'],
-                                   np.array([0, 0, 1]))
-        self.screenPoint = self.data['target'][:, 0]
+        self.screen_normal = np.array(args.screen_norm)
+        self.screen_point = args.screen_center
 
         # calibration or gaze calculation
         self.is_calibration = False
@@ -337,7 +336,7 @@ class GazeMapper(object):
         w, p, c = self.optical_axis(R, K, v, u1, u2,
                                     refraction_model, interval)
         v = self.visual_axis(w, eye_alpha, eye_beta, interval)
-        g = self.scene_intersect(self.screenNormal, self.screenPoint, c, v)
+        g = self.scene_intersect(self.screen_normal, self.screen_point, c, v)
         return w, p, c, v, g
 
     def calc_gaze(self, R=None, K=None,
