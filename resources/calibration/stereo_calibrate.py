@@ -26,7 +26,7 @@ cam2_dist = np.array([-1.34503278e-01,
                       4.13394379e-03])
 
 
-def stereo_calibrate(args, square_size=24.5):
+def stereo_calibrate(args, square_size=24.7):
     term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     objp = np.zeros((1, 6*9, 3), np.float32)
     objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * square_size
@@ -60,7 +60,7 @@ def stereo_calibrate(args, square_size=24.5):
 
     objpoints = np.array(objpoints)
 
-    if args.show:
+    if args.plot:
         fig, ax = plt.subplots(1, 2)
         ax[0].imshow(images[0])
         ax[1].imshow(images[1])
@@ -93,18 +93,22 @@ def point_from_homogeneous(p):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--cam1', type=str, nargs=1, required=True,
-                        help='Calibration image of camera 1')
+                        help='Calibration image of camera 1.')
     parser.add_argument('--cam2', type=str, nargs=1, required=True,
-                        help='Calibration image of camera 2')
-    parser.add_argument('--show', '-s', action='store_true',
-                        help='Show calibration results')
+                        help='Calibration image of camera 2.')
+    parser.add_argument('--plot', '-p', action='store_true',
+                        help='Show calibration plots.')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Print translation and rotation matrices.')
     args = parser.parse_args()
     R, T, E, F = stereo_calibrate(args)
 
-    print('Rotation matrix:\n{}'.format(R))
-    print('Translation matrix:\n{}'.format(T))
-    print('Essential matrix:\n{}'.format(E))
-    print('Fundamental matrix:\n{}'.format(F))
+    if args.verbose:
+        print('\n\nSTEREO CALIBRATION RESULTS\n')
+        print('Rotation matrix:\n{}'.format(R))
+        print('Translation matrix:\n{}'.format(T))
+        print('Essential matrix:\n{}'.format(E))
+        print('Fundamental matrix:\n{}'.format(F))
 
     img = cv2.imread(args.cam2[0])
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -116,43 +120,48 @@ if __name__ == '__main__':
 
     _, rvec, tvec = cv2.solvePnP(objp, corners, cam2_matrix, cam2_dist)
 
-    # fig, ax = plt.subplots(1, 2)
-    # ax[0].imshow(img)
-    # ax[1].imshow(gray, cmap='gray')
-    # plt.show()
+    if args.plot:
+        fig, ax = plt.subplots(1, 2)
+        ax[0].imshow(img)
+        ax[1].imshow(gray, cmap='gray')
+        plt.show()
 
     rmat = cv2.Rodrigues(rvec)[0]
 
-    print('Rotation matrix:\n{}'.format(rmat))
-    print('Translation matrix:\n{}'.format(tvec))
-
-    # cameraPosition = -np.matrix(rmat).T * np.matrix(tvec)
+    if args.verbose:
+        print('\n\nRELATIVE CAMERA POSITIONS\n')
+        print('Rotation matrix:\n{}'.format(rmat))
+        print('Translation matrix:\n{}'.format(tvec))
 
     T1 = construct_homogeneous_transform(R, T)
     T2 = construct_homogeneous_transform(rmat, tvec)
 
     T1T2 = np.linalg.inv(T1).dot(T2)
-    T2T1 = T1.dot(np.linalg.inv(T2))
     C1_h = np.array([0, 0, 0, 1])
     C2_h = np.linalg.inv(T1).dot(C1_h)
     C1 = point_from_homogeneous(C1_h)
     C2 = point_from_homogeneous(C2_h)
     objp_3d = []
-    objp_3d_r = []
     for op in objp[0]:
         obj_pos = T1T2.dot(point_to_homogeneous(op))
-        obj_pos_r = T2T1.dot(point_to_homogeneous(op))
         objp_3d.append(point_from_homogeneous(obj_pos))
-        objp_3d_r.append(point_from_homogeneous(obj_pos_r))
     objp_3d = np.array(objp_3d)
-    objp_3d_r = np.array(objp_3d_r)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(*objp_3d.T)
-    # ax.scatter(*objp_3d_r.T)
-    ax.scatter(*C1)
-    ax.scatter(*C2)
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    plt.show()
+
+    vec1 = objp_3d[0] + objp_3d[8]
+    vec2 = objp_3d[0] + objp_3d[-9]
+    norm_vec = np.cross(vec1, vec2) / np.linalg.norm(np.cross(vec1, vec2))
+    print('\n\nCenter point of screen:\n{}'.format(objp_3d[31]))
+    print('\nScreen normal vector:\n{}'.format(norm_vec))
+
+    if args.plot:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(*objp_3d.T)
+        ax.scatter(*(objp_3d[31] + 50 * norm_vec).T)
+        ax.scatter(*(objp_3d[31] + 100 * norm_vec).T)
+        ax.scatter(*C1)
+        ax.scatter(*C2)
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        plt.show()
