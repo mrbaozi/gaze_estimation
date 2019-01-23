@@ -60,8 +60,10 @@ if __name__ == '__main__':
     p.add('--cam_kappa', type=float, help='Camera rotation around y-axis')
     p.add('--screen_res', type=int, nargs=2, help='Screen resolution')
     p.add('--screen_pp', type=float, help='Screen pixel pitch')
-    p.add('--screen_off', type=float, nargs=3,
-          help='Screen offset from wcs center (lower border)')
+    p.add('--screen_center', type=float, nargs=3,
+          help='Center of screen in wcs')
+    p.add('--screen_norm', type=float, nargs=3,
+          help='Normal vector of screen')
     p.add('--cam_res', type=int, nargs=2, help='Camera resolution')
     p.add('--light_l', type=float, nargs=3, help='Position of left IR light')
     p.add('--light_r', type=float, nargs=3, help='Position of right IR light')
