@@ -93,6 +93,8 @@ class Preprocessor(object):
                 if ".y" in key:
                     # flip up/down
                     self.dataFrame[key] = self.screen_res[1] - self.dataFrame[key]
+                    # recenter origin (middle of screen is zero)
+                    self.dataFrame[key] -= self.screen_res[1] / 2
                 # convert pixels to mm
                 self.dataFrame[key] *= self.screen_pp
             if any(s in key for s in ["reflex", "pupil", "eyecoords"]):
@@ -111,44 +113,36 @@ class Preprocessor(object):
         self.light_r += np.array(
             [0, self.screen_res[1] * self.screen_pp / 2, 0])
 
-        # rotate everything in screen coordinates to world coordinates
-        self.light_l = self.rot @ self.light_l + self.screen_center
-        self.light_r = self.rot @ self.light_r + self.screen_center
+        # rotate screen center to screen coordinates and add to lights
+        self.light_l += self.rot.T @ self.screen_center
+        self.light_r += self.rot.T @ self.screen_center
 
-        # self.dataFrame['gaze_target.y'] += self.screen_center[1]
+        # rotate lights to world coordinates
+        self.light_l = self.rot @ self.light_l
+        self.light_r = self.rot @ self.light_r
 
         # and rotate lights and gaze targets to world coordinates
         targets = np.stack([self.dataFrame['gaze_target.x'],
                             self.dataFrame['gaze_target.y'],
                             np.zeros(self.dataFrame.shape[0])],
                            axis=1)
-        # TODO
-        # print(np.dot(targets, self.rot.T).T)
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-        # xr, yr, zr = targets.T
-        # ax.scatter(xr, yr, zr)
+
+        # rotate targets to wcs and add screen center
         xr, yr, zr = (np.dot(targets, self.rot.T) + self.screen_center).T
-        # ax.scatter(xr, yr, zr)
-        # xr, yr, zr = np.dot(targets, self.rot.T).T
-        # ax.scatter(xr, yr, zr)
-        # ax.scatter(0, 0, 0)
-        # ax.scatter(*self.light_l)
-        # ax.scatter(*self.light_r)
-        # plt.show()
-        # sys.exit()
         self.dataFrame['gaze_target.x'] = xr
         self.dataFrame['gaze_target.y'] = yr
         self.dataFrame['gaze_target.z'] = zr
 
         # add wcs z-axis values for 2d data (fill zeros for camera images)
-        self.dataFrame['left_eye.pupilpos.z'] = np.zeros(self.dataFrame.shape[0])
-        self.dataFrame['right_eye.pupilpos.z'] = np.zeros(self.dataFrame.shape[0])
-        self.dataFrame['left_eye.reflexpos.left.z'] = np.zeros(self.dataFrame.shape[0])
-        self.dataFrame['left_eye.reflexpos.right.z'] = np.zeros(self.dataFrame.shape[0])
-        self.dataFrame['right_eye.reflexpos.left.z'] = np.zeros(self.dataFrame.shape[0])
-        self.dataFrame['right_eye.reflexpos.right.z'] = np.zeros(self.dataFrame.shape[0])
+        df_shape_x = self.dataFrame.shape[0]
+        self.dataFrame['left_eye.pupilpos.z'] = np.zeros(df_shape_x)
+        self.dataFrame['right_eye.pupilpos.z'] = np.zeros(df_shape_x)
+        self.dataFrame['left_eye.reflexpos.left.z'] = np.zeros(df_shape_x)
+        self.dataFrame['left_eye.reflexpos.right.z'] = np.zeros(df_shape_x)
+        self.dataFrame['right_eye.reflexpos.left.z'] = np.zeros(df_shape_x)
+        self.dataFrame['right_eye.reflexpos.right.z'] = np.zeros(df_shape_x)
 
+        #TODO
         # drop all values where we don't have pupils and reflexes
         # actually this also drops everything that doesn't already have a gaze
         # --> maybe fix that (not important for current recordings)
