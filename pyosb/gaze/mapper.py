@@ -99,9 +99,9 @@ class GazeMapper(object):
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(*self.nodal_point.T, c='k', label='Nodal point')
-        ax.scatter(*self.data['light'][0].T, c='k', label='Source 1')
-        ax.scatter(*self.data['light'][1].T, c='k', label='Source 2')
+        ax.scatter(*self.nodal_point.T, marker='o', c='k', label='Nodal point')
+        ax.scatter(*self.data['light'][0].T, marker='v', c='k', label='Source 1')
+        ax.scatter(*self.data['light'][1].T, marker='^', c='k', label='Source 2')
 
         # calculate gaze point for each eye
         w, p, c, v, g1 = self.single_gaze(pupil_mean,
@@ -113,20 +113,21 @@ class GazeMapper(object):
                                           self.explicit_refraction,
                                           self.eye_R, self.eye_K,
                                           self.eye_alpha[0], self.eye_beta)
-        ax.scatter(*g1.T, c='c', marker='.', linewidth=2.0)
-        ax.scatter(*g2.T, c='r', marker='x', linewidth=2.0)
+        ax.scatter(*g1.T, c='c', marker='.', linewidth=2.0, label='Optimized gaze')
+        ax.scatter(*g2.T, c='r', marker='x', linewidth=2.0, label='Initial gaze')
         for i in range(0, len(c)):
-            ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
-                    c='b', linestyle='-')
-            ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
-                    c='g', linestyle='-')
+            # ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
+            #         c='b', linestyle='-')
+            # ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
+            #         c='g', linestyle='-')
             for tgt in np.unique(self.data['target'].T, axis=0):
                 ax.scatter(*tgt.T, c='k', marker='x')
 
-        ax.auto_scale_xyz([-300, 300], [0, 300], [1000, 0])
+        ax.auto_scale_xyz([-400, 400], [0, 400], [400, 0])
         ax.set_xlabel('x (mm)')
         ax.set_ylabel('y (mm)')
         ax.set_zlabel('z (mm)')
+        ax.legend()
         plt.tight_layout()
         plt.show()
         plt.close()

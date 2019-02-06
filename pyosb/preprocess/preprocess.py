@@ -215,6 +215,16 @@ class Preprocessor(object):
             [self.dataFrame['gaze_target.x'],
              self.dataFrame['gaze_target.y'],
              self.dataFrame['gaze_target.z']])
+        data['gaze'] = np.array(
+            [[self.dataFrame['gaze_point.x'],
+              self.dataFrame['gaze_point.y'],
+              self.dataFrame['gaze_point.z']],
+             [self.dataFrame['left_eye.gazepos.x'],
+              self.dataFrame['left_eye.gazepos.y'],
+              self.dataFrame['left_eye.gazepos.z']],
+             [self.dataFrame['right_eye.gazepos.x'],
+              self.dataFrame['right_eye.gazepos.y'],
+              self.dataFrame['right_eye.gazepos.z']]])
         data['screen_rotation'] = self.rot
         data['screen_normal'] = self.screen_norm
         data['screen_center'] = self.screen_center
