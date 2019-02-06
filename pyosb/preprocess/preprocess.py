@@ -42,48 +42,53 @@ class Preprocessor(object):
         if not self.preprocessed:
             self.preprocess_all()
         fig, ax = plt.subplots(2, 1)
-        ax[0].scatter(self.dataFrame['left_eye.pupilpos.x'],
-                      self.dataFrame['left_eye.pupilpos.y'])
         ax[0].scatter(self.dataFrame['left_eye.reflexpos.left.x'],
                       self.dataFrame['left_eye.reflexpos.left.y'],
-                      marker='.')
+                      marker='.', label='left reflex left')
         ax[0].scatter(self.dataFrame['left_eye.reflexpos.right.x'],
                       self.dataFrame['left_eye.reflexpos.right.y'],
-                      marker='.')
-        ax[0].scatter(self.dataFrame['right_eye.pupilpos.x'],
-                      self.dataFrame['right_eye.pupilpos.y'])
+                      marker='.', label='left reflex right')
+        ax[0].scatter(self.dataFrame['left_eye.pupilpos.x'],
+                      self.dataFrame['left_eye.pupilpos.y'],
+                      marker='x', label='pupil left')
         ax[0].scatter(self.dataFrame['right_eye.reflexpos.left.x'],
                       self.dataFrame['right_eye.reflexpos.left.y'],
-                      marker='.')
+                      marker='.', label='right reflex left')
         ax[0].scatter(self.dataFrame['right_eye.reflexpos.right.x'],
                       self.dataFrame['right_eye.reflexpos.right.y'],
-                      marker='.')
+                      marker='.', label='right reflex right')
+        ax[0].scatter(self.dataFrame['right_eye.pupilpos.x'],
+                      self.dataFrame['right_eye.pupilpos.y'],
+                      marker='x', label='pupil right')
         ax[0].set_title("Camera sensor")
         ax[0].set_xlabel("x (mm)")
         ax[0].set_ylabel("y (mm)")
-        ax[1].scatter(self.dataFrame['gaze_target.x'],
-                      self.dataFrame['gaze_target.y'])
-        ax[1].scatter(self.dataFrame['gaze_point.x'],
-                      self.dataFrame['gaze_point.y'],
-                      marker='x')
+        ax[0].legend()
         ax[1].scatter(self.dataFrame['left_eye.gazepos.x'],
                       self.dataFrame['left_eye.gazepos.y'],
-                      marker='.')
+                      marker='.', label='left gaze')
         ax[1].scatter(self.dataFrame['right_eye.gazepos.x'],
                       self.dataFrame['right_eye.gazepos.y'],
-                      marker='.')
+                      marker='.', label='right gaze')
+        ax[1].scatter(self.dataFrame['gaze_point.x'],
+                      self.dataFrame['gaze_point.y'],
+                      marker='x', label='mean gaze')
+        ax[1].scatter(self.dataFrame['gaze_target.x'],
+                      self.dataFrame['gaze_target.y'],
+                      label='gaze target')
         ax[1].set_title("Screen")
         ax[1].set_xlabel("x (mm)")
         ax[1].set_ylabel("y (mm)")
+        ax[1].legend()
         plt.tight_layout()
         plt.show()
 
 
-    def preprocess_all(self):
-        self.fix_reflex_positions()
+    def preprocess_gaze(self):
+        # rescale all gaze values from [0, 1] to mm and
+        gaze_keys = []
         for key in self.dataFrame.keys():
             if "gaze" in key:
-                # convert gaze from [0, 1] to pixels
                 self.rescale_to_screen(key)
                 if ".x" in key:
                     # flip left/right
@@ -95,8 +100,26 @@ class Preprocessor(object):
                     self.dataFrame[key] = self.screen_res[1] - self.dataFrame[key]
                     # recenter origin (middle of screen is zero)
                     self.dataFrame[key] -= self.screen_res[1] / 2
-                # convert pixels to mm
                 self.dataFrame[key] *= self.screen_pp
+                gaze_keys.append(key[:-2])
+        self.gaze_keys = np.unique(gaze_keys)
+
+        # construct z axes for all gaze values and rotate them to wcs
+        for key in self.gaze_keys:
+            tmp = np.stack([self.dataFrame[key + '.x'],
+                            self.dataFrame[key + '.y'],
+                            np.zeros(self.dataFrame.shape[0])],
+                           axis=1)
+            xr, yr, zr = (np.dot(tmp, self.rot.T) + self.screen_center).T
+            self.dataFrame[key + '.x'] = xr
+            self.dataFrame[key + '.y'] = yr
+            self.dataFrame[key + '.z'] = zr
+
+
+    def preprocess_all(self):
+        self.fix_reflex_positions()
+        self.preprocess_gaze()
+        for key in self.dataFrame.keys():
             if any(s in key for s in ["reflex", "pupil", "eyecoords"]):
                 if ".x" in key:
                     # recenter coordinates to cam midpoint (from calibration)
@@ -120,18 +143,6 @@ class Preprocessor(object):
         # rotate lights to world coordinates
         self.light_l = self.rot @ self.light_l
         self.light_r = self.rot @ self.light_r
-
-        # and rotate lights and gaze targets to world coordinates
-        targets = np.stack([self.dataFrame['gaze_target.x'],
-                            self.dataFrame['gaze_target.y'],
-                            np.zeros(self.dataFrame.shape[0])],
-                           axis=1)
-
-        # rotate targets to wcs and add screen center
-        xr, yr, zr = (np.dot(targets, self.rot.T) + self.screen_center).T
-        self.dataFrame['gaze_target.x'] = xr
-        self.dataFrame['gaze_target.y'] = yr
-        self.dataFrame['gaze_target.z'] = zr
 
         # add wcs z-axis values for 2d data (fill zeros for camera images)
         df_shape_x = self.dataFrame.shape[0]
