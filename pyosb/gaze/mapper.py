@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 def is_outlier(points, thresh=3.5):
     """
-    Returns a boolean array with True if points are outliers and False 
+    Returns a boolean array with True if points are outliers and False
     otherwise.
 
     Parameters:
@@ -37,7 +37,7 @@ def is_outlier(points, thresh=3.5):
     ----------
         Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
         Handle Outliers", The ASQC Basic References in Quality Control:
-        Statistical Techniques, Edward F. Mykytka, Ph.D., Editor. 
+        Statistical Techniques, Edward F. Mykytka, Ph.D., Editor.
     """
     if len(points.shape) == 1:
         points = points[:, None]
@@ -45,7 +45,8 @@ def is_outlier(points, thresh=3.5):
     diff = np.sqrt(np.sum((points - median)**2, axis=-1))
     med_abs_deviation = np.median(diff)
 
-    modified_z_score = 0.6745 * diff / med_abs_deviation
+    modified_z_score = 0.6745 * np.divide(diff, med_abs_deviation,
+                                          where=(med_abs_deviation != 0))
 
     return modified_z_score > thresh
 
@@ -78,23 +79,72 @@ class GazeMapper(object):
         self.current_objective = 0
         self.obj_list = []
 
-    def calibrate(self, x0=None, refraction_type='explicit'):
-        # this is all for one eye only!!!
-        eye_idx = 0
+        self.kq = 0
+
+    def get_calib_data(self, eye_idx=0, target_idx=[], use_mean=False,
+                       remove_outliers=False):
         targets = self.data['target'].T
+        unique_targets = np.unique(targets, axis=0)
         pupils = self.data['pupil'][eye_idx].T
         reflex_l = self.data['reflex'][eye_idx, 0].T
         reflex_r = self.data['reflex'][eye_idx, 1].T
 
-        unique_targets = np.unique(targets, axis=0)
-        idx = np.equal(targets, unique_targets[0]).all(axis=1)
-        # idx = np.bitwise_or(idx, 1)
+        if not target_idx:
+            idx = np.full(len(targets), True)
+        else:
+            idx = np.full(len(targets), False)
+            unique = []
+            for tgt_idx in target_idx:
+                idx = np.logical_or(
+                    idx, np.equal(targets,
+                                  unique_targets[tgt_idx]).all(axis=1))
+                unique.append(unique_targets[tgt_idx])
+            unique_targets = np.array(unique)
+        calib_targets = targets[idx]
+        calib_pupils = pupils[idx]
+        calib_reflex_l = reflex_l[idx]
+        calib_reflex_r = reflex_r[idx]
+
+        if remove_outliers:
+            _, _, _, _, g = self.single_gaze(calib_pupils.T,
+                                             calib_reflex_l.T,
+                                             calib_reflex_r.T,
+                                             self.explicit_refraction,
+                                             self.eye_R, self.eye_K,
+                                             self.eye_alpha[eye_idx],
+                                             self.eye_beta)
+            dist = la.norm(calib_targets - g, axis=1)
+            outliers = is_outlier(dist)
+        else:
+            outliers = np.full(len(calib_targets), False)
+        calib_targets = calib_targets[~outliers]
+        calib_pupils = calib_pupils[~outliers]
+        calib_reflex_l = calib_reflex_l[~outliers]
+        calib_reflex_r = calib_reflex_r[~outliers]
+
+        if use_mean:
+            mean_pupils = np.zeros_like(unique_targets)
+            mean_reflex_l = np.zeros_like(unique_targets)
+            mean_reflex_r = np.zeros_like(unique_targets)
+            for i, tgt in enumerate(unique_targets):
+                j = np.equal(calib_targets, tgt).all(axis=1)
+                mean_pupils[i] = np.mean(calib_pupils[j], axis=0)
+                mean_reflex_l[i] = np.mean(calib_reflex_l[j], axis=0)
+                mean_reflex_r[i] = np.mean(calib_reflex_r[j], axis=0)
+            calib_targets = unique_targets
+            calib_pupils = mean_pupils
+            calib_reflex_l = mean_reflex_l
+            calib_reflex_r = mean_reflex_r
+
+        return (calib_targets.T, calib_pupils.T,
+                calib_reflex_l.T, calib_reflex_r.T)
+
+    def calibrate(self, x0=None, refraction_type='explicit'):
         self.current_objective = 0
 
         def _objfn(x, *argv):
             _, _, _, _, g = self.single_gaze(*argv[1:], *x)
-            dist = la.norm(argv[0] - g, axis=1)
-            dist = dist[~is_outlier(dist)]
+            dist = la.norm(argv[0].T - g, axis=1)
             self.current_objective = np.mean(dist)
             return self.current_objective
 
@@ -115,23 +165,26 @@ class GazeMapper(object):
 
         # BOUNDS
         #     R    K    a  b
-        # lb = (6.2, 3.8, 4, 1)
-        # ub = (9.4, 5.7, 6, 2)
-        lb = (4, 4, 1, 1)
-        ub = (10, 10, 5, 5)
+        lb = (6.2, 3.8, 5, 1.5)
+        ub = (9.4, 5.7, 5, 1.5)
+        # lb = (4, 4, 1, 1)
+        # ub = (10, 10, 5, 5)
         bounds = Bounds(lb, ub, keep_feasible=True)
 
-        args = (targets[idx],
-                pupils[idx].T,
-                reflex_l[idx].T,
-                reflex_r[idx].T,
-                refraction_model)
+        calib_data = self.get_calib_data(eye_idx=0,
+                                         target_idx=[],
+                                         use_mean=True,
+                                         remove_outliers=True)
+
+        args = (*calib_data, refraction_model)
 
         self.is_calibration = True
         res = minimize(_objfn, x0=x0, args=args,
                        bounds=bounds, method='L-BFGS-B',
-                       tol=1e-6, callback=_callback,
-                       options={'maxiter': 5, 'disp': False})
+                       tol=1e-12, callback=_callback,
+                       options={'maxiter': 100,
+                                'maxls': 20,
+                                'disp': False})
         self.is_calibration = False
         print(res)
 
@@ -151,7 +204,8 @@ class GazeMapper(object):
                    label='Initial gaze')
         ax.scatter(*g2.T, c='c', marker='.', linewidth=2.0,
                    label='Optimized gaze')
-        ax.scatter(*unique_targets.T, c='k', marker='x')
+        unique_targets = calib_data[0]
+        ax.scatter(*unique_targets, c='k', marker='x')
         # for i in range(0, len(c)):
         #     ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
         #             c='b', linestyle='-')
@@ -289,7 +343,7 @@ class GazeMapper(object):
         bounds = ((200, 1000), (200, 1000))
         args = (l1, l2, u1, u2, b, o, R)
         kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
-                      method='L-BFGS-B', tol=1e-8, options={'maxiter': 1e5})
+                      method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
         # mean of both results (3.12)
         c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, R)
         c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, R)
