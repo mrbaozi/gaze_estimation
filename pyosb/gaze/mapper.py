@@ -145,7 +145,7 @@ class GazeMapper(object):
         def _objfn(x, *argv):
             _, _, _, _, g = self.single_gaze(*argv[1:], *x)
             dist = la.norm(argv[0].T - g, axis=1)
-            self.current_objective = np.mean(dist)
+            self.current_objective = np.mean(np.square(dist))
             return self.current_objective
 
         def _callback(x):
@@ -165,8 +165,12 @@ class GazeMapper(object):
 
         # BOUNDS
         #     R    K    a  b
-        lb = (6.2, 3.8, 5, 1.5)
-        ub = (9.4, 5.7, 5, 1.5)
+        # lb = (6.2, 3.8, 0, 0)
+        # ub = (9.4, 5.7, 5, 3)
+        # lb = (7.8, 3.8, 0, 0)
+        # ub = (7.8, 5.7, 5, 3)
+        lb = (6.2, 4.2, 0, 0)
+        ub = (9.4, 4.2, 5, 3)
         # lb = (4, 4, 1, 1)
         # ub = (10, 10, 5, 5)
         bounds = Bounds(lb, ub, keep_feasible=True)
@@ -182,7 +186,7 @@ class GazeMapper(object):
         res = minimize(_objfn, x0=x0, args=args,
                        bounds=bounds, method='L-BFGS-B',
                        tol=1e-12, callback=_callback,
-                       options={'maxiter': 100,
+                       options={'maxiter': 1000,
                                 'maxls': 20,
                                 'disp': False})
         self.is_calibration = False
