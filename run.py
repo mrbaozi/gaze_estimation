@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
 import configargparse
 import matplotlib.pyplot as plt
 from pyosb.fileio.eyeosbparser import EyeInfoParser
@@ -12,7 +13,6 @@ def main(options):
     # create pandas dataframe from json recordings and do some preprocessing
     parser = EyeInfoParser(options)
     pp = Preprocessor(parser.get_dataframe(), options)
-    # pp.show()
     data = pp.get_wcs_data()
 
     mapper = GazeMapper(options, data)
