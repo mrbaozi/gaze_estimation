@@ -151,10 +151,11 @@ class GazeMapper(object):
         def _callback(x):
             self.obj_list.append(self.current_objective)
             print(f"Iteration {len(self.obj_list):3d}  -  "
-                  f"Objective: {self.obj_list[-1]:12.8f}")
+                  f"Objective: {np.sqrt(self.obj_list[-1]):12.8f}")
 
         if refraction_type == 'explicit':
             refraction_model = self.explicit_refraction
+            refraction_model = self.implicit_refraction
         elif refraction_type == 'implicit':
             refraction_model = self.implicit_refraction
         else:
@@ -167,10 +168,10 @@ class GazeMapper(object):
         #     R    K    a  b
         # lb = (6.2, 3.8, 0, 0)
         # ub = (9.4, 5.7, 5, 3)
-        # lb = (7.8, 3.8, 0, 0)
-        # ub = (7.8, 5.7, 5, 3)
-        lb = (6.2, 4.2, 0, 0)
-        ub = (9.4, 4.2, 5, 3)
+        # lb = (8.2, 3.8, 0, 0)
+        # ub = (8.2, 5.7, 5, 3)
+        lb = (8.2, 3.8, -5, 0)
+        ub = (8.2, 5.7, 5, 3)
         # lb = (4, 4, 1, 1)
         # ub = (10, 10, 5, 5)
         bounds = Bounds(lb, ub, keep_feasible=True)
@@ -179,6 +180,25 @@ class GazeMapper(object):
                                          target_idx=[],
                                          use_mean=True,
                                          remove_outliers=True)
+
+        # calib_data = self.get_calib_data(eye_idx=0,
+        #                                  target_idx=[],
+        #                                  use_mean=True,
+        #                                  remove_outliers=False)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection='3d')
+        # ax.scatter(*calib_data[1])
+        # ax.scatter(*calib_data[2])
+        # ax.scatter(*calib_data[3])
+        # calib_data = self.get_calib_data(eye_idx=1,
+        #                                  target_idx=[],
+        #                                  use_mean=True,
+        #                                  remove_outliers=False)
+        # ax.scatter(*calib_data[1])
+        # ax.scatter(*calib_data[2])
+        # ax.scatter(*calib_data[3])
+        # plt.show()
+        # sys.exit()
 
         args = (*calib_data, refraction_model)
 
@@ -210,11 +230,11 @@ class GazeMapper(object):
                    label='Optimized gaze')
         unique_targets = calib_data[0]
         ax.scatter(*unique_targets, c='k', marker='x')
-        # for i in range(0, len(c)):
-        #     ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
-        #             c='b', linestyle='-')
-        #     ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
-        #             c='g', linestyle='-')
+        for i in range(0, len(c)):
+            ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
+                    c='b', linestyle='-')
+            # ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
+            #         c='g', linestyle='-')
 
         ax.auto_scale_xyz([-400, 400], [0, 400], [400, 0])
         ax.set_xlabel('x (mm)')
@@ -343,8 +363,9 @@ class GazeMapper(object):
         b = self.b_norm(l1, l2, u1, u2, o)
 
         # obtain c (center of corneal curvature) from kq (method 2)
-        params = np.array((500, 500))
-        bounds = ((200, 1000), (200, 1000))
+        params = np.array((700, 700))
+        bounds = ((650, 750), (650, 750))
+        # bounds = ((650, 750), (650, 750))
         args = (l1, l2, u1, u2, b, o, R)
         kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
                       method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
