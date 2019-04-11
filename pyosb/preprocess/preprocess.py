@@ -204,13 +204,13 @@ class Preprocessor(object):
                self.dataFrame['left_eye.reflexpos.left.z']],
               [self.dataFrame['left_eye.reflexpos.right.x'],
                self.dataFrame['left_eye.reflexpos.right.y'],
-               self.dataFrame['left_eye.reflexpos.left.z']]],
+               self.dataFrame['left_eye.reflexpos.right.z']]],
              [[self.dataFrame['right_eye.reflexpos.left.x'],
                self.dataFrame['right_eye.reflexpos.left.y'],
                self.dataFrame['right_eye.reflexpos.left.z']],
               [self.dataFrame['right_eye.reflexpos.right.x'],
                self.dataFrame['right_eye.reflexpos.right.y'],
-               self.dataFrame['right_eye.reflexpos.left.z']]]])
+               self.dataFrame['right_eye.reflexpos.right.z']]]])
         data['target'] = np.array(
             [self.dataFrame['gaze_target.x'],
              self.dataFrame['gaze_target.y'],
