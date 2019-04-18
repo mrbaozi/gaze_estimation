@@ -4,4 +4,3 @@ matplotlib
 pandas
 tqdm
 configargparse
-./resources/spinnaker_python-1.13.0.31-cp36-cp36m-linux_x86_64.whl
