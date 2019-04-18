@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import argparse
 import cv2
 import numpy as np
@@ -8,27 +9,64 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
-cam1_matrix = np.array([
-    [3.28096059e+03, 0.00000000e+00, 9.69093680e+02],
-    [0.00000000e+00, 3.28086485e+03, 8.28389419e+02],
-    [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
-cam1_dist = np.array([-1.18342721e-01,
-                      6.40528615e-02,
-                      6.70611000e-05,
-                      -1.27527496e-03])
-cam2_matrix = np.array([
-    [3.36073182e+03, 0.00000000e+00, 1.19890016e+03],
-    [0.00000000e+00, 3.35485021e+03, 7.90126077e+02],
-    [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
-cam2_dist = np.array([-1.34503278e-01,
-                      1.97805440e-01,
-                      1.25122839e-04,
-                      4.13394379e-03])
-
-
-def stereo_calibrate(args, square_size=24.7):
+def mono_calibrate(folder, square_size=25, save_output=False):
     term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-    objp = np.zeros((1, 6*9, 3), np.float32)
+    # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
+    objp = np.zeros((6 * 9, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * square_size
+
+    # Arrays to store object points and image points from all the images.
+    objpoints = []  # 3d point in real world space
+    imgpoints = []  # 2d points in image plane.
+
+    for fname in os.listdir(folder):
+        img = cv2.imread(os.path.join(folder, fname))
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Find the chess board corners
+        ret, corners = cv2.findChessboardCorners(gray, (9, 6), None)
+
+        # If found, add object points, image points (after refining them)
+        if ret:
+            objpoints.append(objp)
+            cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), term_crit)
+            imgpoints.append(corners)
+
+    objpoints = np.array(objpoints)
+    imgpoints = np.array(imgpoints)
+
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints,
+                                                       gray.shape[::-1],
+                                                       None, None,
+                                                       criteria=term_crit)
+    fovx, fovy, focalLength, principalPoint, aspectRatio = \
+        cv2.calibrationMatrixValues(mtx, gray.shape[::-1], 5.2, 3.88)
+
+    if save_output:
+        with open(os.path.basename(os.path.normpath(folder))
+                  + '_calibration.txt', 'w') as ofile:
+            ofile.write("Average reprojection error: {}\n".format(ret))
+            ofile.write("Camera intrinsic matrix:\n{}\n".format(mtx))
+            ofile.write("Distortion coefficients:\n{}\n".format(dist))
+            ofile.write("Per image rotation vectors:\n{}\n".format(rvecs))
+            ofile.write("Per image translation vectors:\n{}\n"
+                        .format(tvecs))
+            ofile.write("Field of view in degress along "
+                        "horizontal sensor axis:\n{}\n".format(fovx))
+            ofile.write("Field of view in degress along "
+                        "vertical sensor axis:\n{}\n".format(fovy))
+            ofile.write("Focal length of lens in mm:\n{}\n"
+                        .format(focalLength))
+            ofile.write("Principal point in mm:\n{}\n"
+                        .format(principalPoint))
+            ofile.write("Pixel aspect ratio:\n{}".format(aspectRatio))
+
+    return ret, mtx, dist, rvecs, tvecs
+
+
+def stereo_calibrate(args, cam1_calib, cam2_calib, square_size=24.7):
+    term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+    objp = np.zeros((1, 6 * 9, 3), np.float32)
     objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * square_size
 
     # Arrays to store object points and image points from all the images.
@@ -59,6 +97,7 @@ def stereo_calibrate(args, square_size=24.7):
             images.append(img)
 
     objpoints = np.array(objpoints)
+    imgpoints = np.array(imgpoints)
 
     if args.plot:
         fig, ax = plt.subplots(1, 2)
@@ -68,8 +107,8 @@ def stereo_calibrate(args, square_size=24.7):
 
     _, _, _, _, _, R, T, E, F = cv2.stereoCalibrate(
         objpoints[0], imgpoints[0], imgpoints[1],
-        cam1_matrix, cam1_dist,
-        cam2_matrix, cam2_dist,
+        cam1_calib[1], cam1_calib[2],
+        cam2_calib[1], cam2_calib[2],
         gray.shape[::-1], flags=cv2.CALIB_FIX_INTRINSIC, criteria=term_crit)
 
     return R, T, E, F
@@ -90,18 +129,12 @@ def point_from_homogeneous(p):
     return p[0:-1]
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--cam1', type=str, nargs=1, required=True,
-                        help='Calibration image of camera 1.')
-    parser.add_argument('--cam2', type=str, nargs=1, required=True,
-                        help='Calibration image of camera 2.')
-    parser.add_argument('--plot', '-p', action='store_true',
-                        help='Show calibration plots.')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Print translation and rotation matrices.')
-    args = parser.parse_args()
-    R, T, E, F = stereo_calibrate(args)
+def main(args):
+    calibrations = []
+    for folder in args.folders:
+        calibrations.append(mono_calibrate(folder, 25, args.save))
+
+    R, T, E, F = stereo_calibrate(args, calibrations[0], calibrations[1])
 
     if args.verbose:
         print('\n\nSTEREO CALIBRATION RESULTS\n')
@@ -113,12 +146,12 @@ if __name__ == '__main__':
     img = cv2.imread(args.cam2[0])
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray[:, :1000] = 0
-    term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-    objp = np.zeros((1, 6*9, 3), np.float32)
+    objp = np.zeros((1, 6 * 9, 3), np.float32)
     objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * 36.5
     _, corners = cv2.findChessboardCorners(gray, (9, 6), None)
 
-    _, rvec, tvec = cv2.solvePnP(objp, corners, cam2_matrix, cam2_dist)
+    _, rvec, tvec = cv2.solvePnP(objp, corners,
+                                 calibrations[1][1], calibrations[1][2])
 
     if args.plot:
         fig, ax = plt.subplots(1, 2)
@@ -165,3 +198,21 @@ if __name__ == '__main__':
         ax.set_ylabel('y')
         ax.set_zlabel('z')
         plt.show()
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--folders', '-f', type=str, nargs='+', required=True,
+                        help='Folders with calibration images for each camera')
+    parser.add_argument('--save', '-s', action='store_true',
+                        help='Save intrinsic calibrations to file')
+    parser.add_argument('--cam1', type=str, nargs=1, required=True,
+                        help='Extrinsic calibration image of camera 1')
+    parser.add_argument('--cam2', type=str, nargs=1, required=True,
+                        help='Extrinsic calibration image of camera 2')
+    parser.add_argument('--plot', '-p', action='store_true',
+                        help='Show calibration plots.')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Print translation and rotation matrices')
+    args = parser.parse_args()
+    main(args)
