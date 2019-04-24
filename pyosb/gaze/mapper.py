@@ -79,6 +79,9 @@ class GazeMapper(object):
         self.current_objective = 0
         self.obj_list = []
 
+        # calibration values
+        self.calib = {}
+
         self.kq = 0
 
     def get_calib_data(self, eye_idx=0, target_idx=[], use_mean=False,
@@ -139,7 +142,9 @@ class GazeMapper(object):
         return (calib_targets.T, calib_pupils.T,
                 calib_reflex_l.T, calib_reflex_r.T)
 
-    def calibrate(self, x0=None, refraction_type='explicit'):
+    def calibrate(self, x0=None, refraction_type='explicit',
+                  remove_outliers=False, eye='left', target_idx=[],
+                  use_mean=True, show_results=False):
         self.current_objective = 0
 
         def _objfn(x, *argv):
@@ -161,44 +166,26 @@ class GazeMapper(object):
         else:
             print(f"Unrecognized refraction model: {refraction_type}")
             sys.exit(1)
+
         if x0 is None:
-            x0 = (self.eye_R, self.eye_K, self.eye_alpha[0], self.eye_beta)
+            x0 = (self.eye_R, self.eye_K, self.eye_alpha[1], self.eye_beta)
+
+        eye_idx = 0
+        if eye == 'right':
+            eye_idx = 1
 
         # BOUNDS
         #     R    K    a  b
-        # lb = (6.2, 3.8, 0, 0)
+        # lb = (6.2, 3.8, -5, 0)
         # ub = (9.4, 5.7, 5, 3)
-        # lb = (8.2, 3.8, 0, 0)
-        # ub = (8.2, 5.7, 5, 3)
         lb = (8.2, 3.8, -5, 0)
         ub = (8.2, 5.7, 5, 3)
-        # lb = (4, 4, 1, 1)
-        # ub = (10, 10, 5, 5)
         bounds = Bounds(lb, ub, keep_feasible=True)
 
-        calib_data = self.get_calib_data(eye_idx=0,
+        calib_data = self.get_calib_data(eye_idx=eye_idx,
                                          target_idx=[],
-                                         use_mean=True,
-                                         remove_outliers=True)
-
-        # calib_data = self.get_calib_data(eye_idx=0,
-        #                                  target_idx=[],
-        #                                  use_mean=True,
-        #                                  remove_outliers=False)
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-        # ax.scatter(*calib_data[1])
-        # ax.scatter(*calib_data[2])
-        # ax.scatter(*calib_data[3])
-        # calib_data = self.get_calib_data(eye_idx=1,
-        #                                  target_idx=[],
-        #                                  use_mean=True,
-        #                                  remove_outliers=False)
-        # ax.scatter(*calib_data[1])
-        # ax.scatter(*calib_data[2])
-        # ax.scatter(*calib_data[3])
-        # plt.show()
-        # sys.exit()
+                                         use_mean=use_mean,
+                                         remove_outliers=remove_outliers)
 
         args = (*calib_data, refraction_model)
 
@@ -209,41 +196,39 @@ class GazeMapper(object):
                        options={'maxiter': 1000,
                                 'maxls': 20,
                                 'disp': False})
+        self.calib[eye] = res.x
         self.is_calibration = False
+        self.obj_list = []
         print(res)
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.scatter(*self.nodal_point.T, marker='o', c='k',
-                   label='Nodal point')
-        ax.scatter(*self.data['light'][0].T, marker='v', c='k',
-                   label='Source 1')
-        ax.scatter(*self.data['light'][1].T, marker='^', c='k',
-                   label='Source 2')
+        if show_results:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(*self.nodal_point.T, marker='o', c='k',
+                       label='Nodal point')
+            ax.scatter(*self.data['light'][0].T, marker='v', c='k',
+                       label='Source 1')
+            ax.scatter(*self.data['light'][1].T, marker='^', c='k',
+                       label='Source 2')
 
-        # calculate gaze point for each eye
-        w, p, c, v, g1 = self.single_gaze(*args[1:], *x0)
-        _, _, _, _, g2 = self.single_gaze(*args[1:], *res.x)
-        ax.scatter(*g1.T, c='r', marker='x', linewidth=2.0,
-                   label='Initial gaze')
-        ax.scatter(*g2.T, c='c', marker='.', linewidth=2.0,
-                   label='Optimized gaze')
-        unique_targets = calib_data[0]
-        ax.scatter(*unique_targets, c='k', marker='x')
-        for i in range(0, len(c)):
-            ax.plot(*np.array((c[i], c[i] + 400 * w[i])).T,
-                    c='b', linestyle='-')
-            # ax.plot(*np.array((c[i], c[i] + 400 * v[i])).T,
-            #         c='g', linestyle='-')
+            # calculate gaze point for each eye
+            w, p, c, v, g1 = self.single_gaze(*args[1:], *x0)
+            _, _, _, _, g2 = self.single_gaze(*args[1:], *res.x)
+            ax.scatter(*g1.T, c='r', marker='x', linewidth=2.0,
+                       label='Initial gaze')
+            ax.scatter(*g2.T, c='c', marker='.', linewidth=2.0,
+                       label='Optimized gaze')
+            unique_targets = calib_data[0]
+            ax.scatter(*unique_targets, c='k', marker='x')
 
-        ax.auto_scale_xyz([-400, 400], [0, 400], [400, 0])
-        ax.set_xlabel('x (mm)')
-        ax.set_ylabel('y (mm)')
-        ax.set_zlabel('z (mm)')
-        ax.legend()
-        plt.tight_layout()
-        plt.show()
-        plt.close()
+            ax.auto_scale_xyz([-400, 400], [0, 400], [400, 0])
+            ax.set_xlabel('x (mm)')
+            ax.set_ylabel('y (mm)')
+            ax.set_zlabel('z (mm)')
+            ax.legend()
+            plt.tight_layout()
+            plt.show()
+            plt.close()
 
     @staticmethod
     def b_norm(l1, l2, u1, u2, o):
@@ -254,6 +239,7 @@ class GazeMapper(object):
 
     @staticmethod
     def curvaturecenter_c(kq, l, u, b, o, r):
+        """Center of corneal curvature (3.7)"""
         ou_n = (o - u) / la.norm(o - u)
         q = o + kq * ou_n
         oq_n = (o - q) / la.norm(o - q)
@@ -363,12 +349,13 @@ class GazeMapper(object):
         b = self.b_norm(l1, l2, u1, u2, o)
 
         # obtain c (center of corneal curvature) from kq (method 2)
-        params = np.array((700, 700))
-        bounds = ((650, 750), (650, 750))
-        # bounds = ((650, 750), (650, 750))
+        params = np.array((500, 500))
+        bounds = ((400, 750), (400, 750))
+        # bounds = ((200, 1000), (200, 1000))
         args = (l1, l2, u1, u2, b, o, R)
         kq = minimize(self.solve_kc_phd2, params, args=args, bounds=bounds,
-                      method='SLSQP', tol=1e-8, options={'maxiter': 1e5})
+                      method='SLSQP', tol=1e-12, options={'maxiter': 1e5})
+
         # mean of both results (3.12)
         c1 = self.curvaturecenter_c(kq.x[0], l1, u1, b, o, R)
         c2 = self.curvaturecenter_c(kq.x[1], l2, u2, b, o, R)
@@ -454,16 +441,9 @@ class GazeMapper(object):
         g = self.scene_intersect(self.screen_normal, self.screen_point, c, v)
         return w, p, c, v, g
 
-    def calc_gaze(self, R=None, K=None,
-                  eye_alpha=None, eye_beta=None,
-                  eye='both', interval=1, refraction_type='explicit',
-                  show=False):
+    def calc_gaze(self, eye='both', interval=1,
+                  refraction_type='explicit', show=False):
         """Gets gaze intersect with screen from optical and visual axis"""
-
-        if R is None:
-            R = self.eye_R
-        if K is None:
-            K = self.eye_K
 
         if eye == 'both':
             eye_idx = [0, 1]
@@ -474,11 +454,6 @@ class GazeMapper(object):
         else:
             print(f"Unrecognized eye index: {eye}")
             sys.exit(1)
-
-        if eye_alpha is None:
-            eye_alpha = self.eye_alpha
-        if eye_beta is None:
-            eye_beta = self.eye_beta
 
         if refraction_type == 'explicit':
             refraction_model = self.explicit_refraction
@@ -498,12 +473,21 @@ class GazeMapper(object):
         # calculate gaze point for each eye
         g = []
         for i in eye_idx:
+            if i == 0 and 'left' in self.calib:
+                R, K, a, b = self.calib['left']
+            elif i == 1 and 'right' in self.calib:
+                R, K, a, b = self.calib['right']
+            else:
+                R = self.eye_R
+                K = self.eye_K
+                a = self.eye_alpha[i]
+                b = self.eye_beta
+
             v = self.data['pupil'][i]
             u1 = self.data['reflex'][i, 0]
             u2 = self.data['reflex'][i, 1]
             w, p, c, v, gi = self.single_gaze(v, u1, u2, refraction_model,
-                                              R, K, eye_alpha[i], eye_beta,
-                                              interval)
+                                              R, K, a, b, interval)
             g.append(gi)
 
             if show:
