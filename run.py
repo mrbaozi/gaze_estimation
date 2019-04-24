@@ -17,26 +17,15 @@ def main(options):
 
     mapper = GazeMapper(options, data)
 
-    # mapper.calc_gaze(eye='left', refraction_type='explicit', show=True)
-    mapper.calibrate()
-
-    # _, cl, wl, _ = mapper.calc_gaze(eye='left', refraction_type=refraction)
-    # _, cr, wr, _ = mapper.calc_gaze(eye='right', refraction_type=refraction)
-
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(*cl.T, c='g', marker='.', label='cl')
-    # ax.scatter(*cr.T, c='r', marker='.', label='cr')
-    # # ax.scatter(*wl.T, c='g', marker='x', label='wl')
-    # # ax.scatter(*wr.T, c='r', marker='x', label='wr')
-    # ax.set_xlabel('x (mm)')
-    # ax.set_ylabel('y (mm)')
-    # ax.set_zlabel('z (mm)')
-    # plt.legend()
-    # plt.tight_layout()
-    # plt.show()
-    # plt.close()
-
+    refraction = 'explicit'
+    mapper.calibrate(eye='left', refraction_type=refraction,
+                     remove_outliers=True)
+    mapper.calc_gaze(eye='left', refraction_type=refraction,
+                     show=True)
+    mapper.calibrate(eye='right', refraction_type=refraction,
+                     remove_outliers=True)
+    mapper.calc_gaze(eye='right', refraction_type=refraction,
+                     show=True)
 
 if __name__ == '__main__':
     p = configargparse.ArgParser(default_config_files=['./config/config.ini'],

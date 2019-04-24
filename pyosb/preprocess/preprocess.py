@@ -83,7 +83,6 @@ class Preprocessor(object):
         plt.tight_layout()
         plt.show()
 
-
     def preprocess_gaze(self):
         # rescale all gaze values from [0, 1] to mm and
         gaze_keys = []
@@ -114,7 +113,6 @@ class Preprocessor(object):
             self.dataFrame[key + '.x'] = xr
             self.dataFrame[key + '.y'] = yr
             self.dataFrame[key + '.z'] = zr
-
 
     def preprocess_all(self):
         self.fix_reflex_positions()

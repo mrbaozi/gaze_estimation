@@ -82,8 +82,6 @@ class GazeMapper(object):
         # calibration values
         self.calib = {}
 
-        self.kq = 0
-
     def get_calib_data(self, eye_idx=0, target_idx=[], use_mean=False,
                        remove_outliers=False):
         targets = self.data['target'].T
@@ -349,6 +347,8 @@ class GazeMapper(object):
         b = self.b_norm(l1, l2, u1, u2, o)
 
         # obtain c (center of corneal curvature) from kq (method 2)
+        # TODO: This optimization is very sensitive to the bounds and initial
+        # values, this needs to be fixed somehow.
         params = np.array((500, 500))
         bounds = ((400, 750), (400, 750))
         # bounds = ((200, 1000), (200, 1000))
