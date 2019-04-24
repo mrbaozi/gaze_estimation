@@ -18,6 +18,7 @@ The DataFrame can then simply be returned with a call to `EyeInfoParser.get_data
 ## Preprocessor
 
 The `Preprocessor` class does a few things:
+
     1. Convert the pupil and reflex positions to the correct pixel values because EyeOSB stores them relative to the eye patch.
     2. If the recording already contains gaze points (useful for comparisons), rescale them from $`\left[0, 1 \right]`$ to mm and recenter their origin to coincide with the center of the screen. Afterwards, rotate them using the extrinsic calibration (see [Camera calibration](camera_calibration.md)) so that the WCS origin sits at the center of the camera image plane (camera sensor).
     3. Recenter reflex and pupil coordinates so that they coincide with the calibrated center of the camera image sensor (WCS origin) and rescale them from pixels to mm.
