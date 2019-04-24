@@ -10,6 +10,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 def mono_calibrate(folder, square_size=25, save_output=False):
+    """Intrinsic calibration for one camera with checkerboard pattern
+    """
     term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
     objp = np.zeros((6 * 9, 3), np.float32)
@@ -65,6 +67,8 @@ def mono_calibrate(folder, square_size=25, save_output=False):
 
 
 def stereo_calibrate(args, cam1_calib, cam2_calib, square_size=24.7):
+    """Extrinsic calibration for two cameras with checkerboard pattern
+    """
     term_crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     objp = np.zeros((1, 6 * 9, 3), np.float32)
     objp[0, :, :2] = np.mgrid[0:9, 0:6].T.reshape(-1, 2) * square_size
